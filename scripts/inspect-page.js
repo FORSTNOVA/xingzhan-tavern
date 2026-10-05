@@ -1,0 +1,4 @@
+(() => {
+ const selectors=['#chat','.mes','.mes_text','iframe','#sheld','#top-settings-holder'];
+ return {viewport:{width:innerWidth,height:innerHeight,dpr:devicePixelRatio,visual:{width:visualViewport.width,height:visualViewport.height,scale:visualViewport.scale}},elements:selectors.map(s=>{const e=document.querySelector(s);if(!e)return {s};const r=e.getBoundingClientRect(),c=getComputedStyle(e);return {s,rect:{x:r.x,y:r.y,w:r.width,h:r.height},styles:{width:c.width,maxWidth:c.maxWidth,padding:c.padding,margin:c.margin,zoom:c.zoom,transform:c.transform,filter:c.filter,backdropFilter:c.backdropFilter,overflow:c.overflow},scroll:[e.scrollTop,e.scrollHeight,e.clientHeight]}}),animations:document.getAnimations().map(a=>({name:a.animationName,state:a.playState,target:a.effect?.target?.id})),visibility:document.visibilityState,focus:document.hasFocus()};
+})()

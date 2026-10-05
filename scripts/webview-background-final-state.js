@@ -1,0 +1,1 @@
+({title:document.title,visibility:document.visibilityState,focus:document.hasFocus(),viewport:[innerWidth,innerHeight],probe:window.__backgroundWebViewProbe ? {received:window.__backgroundWebViewProbe.received,done:window.__backgroundWebViewProbe.done,status:window.__backgroundWebViewProbe.status,error:window.__backgroundWebViewProbe.error || null} : null})

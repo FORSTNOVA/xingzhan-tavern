@@ -1,0 +1,13 @@
+import fs from 'node:fs';
+const beforeDir='artifacts/tts-evaluation/live-2026-10-04T09-12-26-409Z',afterDir='artifacts/tts-evaluation/live-2026-10-04T09-25-58-385Z';
+const before=JSON.parse(fs.readFileSync(beforeDir+'/report.json','utf8')),after=JSON.parse(fs.readFileSync(afterDir+'/report.json','utf8'));
+const b=before.records.find(r=>r.id==='expanded-long-turns'),a=after.records.find(r=>r.id==='expanded-long-turns');
+const text=r=>r.diagnostics.map(d=>JSON.parse(d.request.body.messages[1].content).selectedText).join('');
+if(text(b)!==text(a)||text(a).length!==12175)throw Error('前后长篇原文不同，不能作直接对照');
+const score=after.scores.find(s=>s.id===a.id);
+const input=after.records.flatMap(r=>r.usage||[]).reduce((n,u)=>n+(u.prompt_tokens||0),0),output=after.records.flatMap(r=>r.usage||[]).reduce((n,u)=>n+(u.completion_tokens||0),0);
+const result={model:after.model,identicalText:true,characters:12175,before:{sourceHash:before.sourceHash,status:b.status,wholeAccepted:false,savedBatches:2,error:b.error},after:{sourceHash:after.sourceHash,status:a.status,wholeAccepted:score.passed,batches:a.result.analysisChunks,units:score.units.length,typeCorrect:score.units.filter(x=>x.typeCorrect).length,dialogueUnits:score.units.filter(x=>x.knownDialogue).length,speakerCorrect:score.units.filter(x=>x.knownDialogue&&x.speakerCorrect).length,profiles:a.result.speakers.map(p=>({id:p.id,name:p.name})),doubts:a.result.segments.filter(s=>s.reviewReasons?.length).length},budget:{authorized:10,used:after.upstreamCalls,remaining:10-after.upstreamCalls,stoppedOn429:true},usage:{input,output,total:input+output,failed429ReportedUsage:false},scope:'一次重复交接结构的合成长篇，不能推断所有角色卡准确率；没有生成语音。'};
+fs.writeFileSync(afterDir+'/long-comparison.json',JSON.stringify(result,null,2));
+const pending=JSON.parse(fs.readFileSync('scripts/fixtures/tts-natural-cases.json','utf8')).pilotIds.filter(id=>!after.records.some(r=>r.id===id));
+fs.writeFileSync('artifacts/tts-evaluation/current-budget.json',JSON.stringify({...result.budget,model:after.model,runDirectory:afterDir,pendingCases:pending,failedCase:'natural-three-people',note:'429 后停止，无自动重试；本轮授权最多 10 次，剩余 6 次权限保留，不需要重复确认相同预算。'},null,2));
+console.log(JSON.stringify(result,null,2));

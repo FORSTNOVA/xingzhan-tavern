@@ -1,0 +1,30 @@
+plugins { id 'com.android.application' }
+tasks.register('packSynthesis', Exec) {
+    workingDir rootProject.projectDir
+    commandLine 'node', rootProject.file('scripts/pack-synthesis.mjs').absolutePath
+    inputs.dir rootProject.file('plugins/xingzhan-synthesis')
+    inputs.file rootProject.file('scripts/pack-synthesis.mjs')
+    outputs.files(['manifest.json','index.js','media.js','style.css','system.js'].collect { rootProject.file('app/src/main/assets/xingzhan-synthesis-' + it) })
+    outputs.file rootProject.file('artifacts/xingzhan-synthesis.zip')
+}
+tasks.named('preBuild').configure { dependsOn 'packSynthesis' }
+android {
+    namespace 'cn.jiuguan.probe'
+    compileSdk 36
+    ndkVersion '27.2.12479018'
+    buildFeatures { buildConfig true }
+    defaultConfig {
+        applicationId 'cn.jiuguan.probe'
+        minSdk 26
+        targetSdk 36
+        versionCode 1
+        versionName '0.1-probe'
+        buildConfigField 'boolean', 'WAKELOCK_PROBE', (project.findProperty('probeWakeLock') ?: 'false').toString()
+        ndk { abiFilters 'arm64-v8a', 'x86_64' }
+        externalNativeBuild { cmake { arguments '-DANDROID_STL=c++_shared' } }
+    }
+    externalNativeBuild { cmake { path 'src/main/cpp/CMakeLists.txt'; version '3.22.1' } }
+    sourceSets { main { jniLibs.srcDirs = ['../runtime/node24/bin'] } }
+    packaging { jniLibs { useLegacyPackaging = true } }
+    compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
+}

@@ -1,0 +1,14 @@
+import fs from 'node:fs';
+import assert from 'node:assert/strict';
+import {validateEvaluationDataset,scoreClassificationCase,summarizeClassificationScores} from './tts-evaluation-core.mjs';
+import {loadEvaluationRuntime} from './tts-evaluation-runtime.mjs';
+const data=JSON.parse(fs.readFileSync('scripts/fixtures/tts-classification-cases.json','utf8')),manifest=validateEvaluationDataset(data),{backend}=await loadEvaluationRuntime();
+const scores=data.cases.map(c=>{const result={speakers:[...new Set(c.expectedSpans.map(x=>x.speaker))].map(id=>({id,name:id})),segments:c.expectedSpans.map(x=>({text:x.text,type:x.type,speakerId:x.speaker,reviewReasons:[]}))};return scoreClassificationCase(c,result,backend.speechSourceUnits(c.text));});
+assert.equal(scores.filter(x=>x.passed).length,30);assert.equal(manifest.holdout,10);
+const sample=data.cases.find(x=>x.id==='p0-01'),units=backend.speechSourceUnits(sample.text),wrong={speakers:[{id:'wrong',name:'别人'}],segments:sample.expectedSpans.map(x=>({text:x.text,type:x.type,speakerId:x.type==='dialogue'?'wrong':'narrator',reviewReasons:[]}))};
+const mistake=scoreClassificationCase(sample,wrong,units);assert.equal(mistake.errors.length,1);assert.equal(summarizeClassificationScores([mistake]).knownSpeakerUnits.percent,0);assert.equal(summarizeClassificationScores([mistake]).errorFlagRecall.percent,0);
+wrong.segments[1].reviewReasons=['发言人待确认'];assert.equal(summarizeClassificationScores([scoreClassificationCase(sample,wrong,units)]).errorFlagRecall.percent,100);
+const changed=structuredClone(wrong);changed.segments[1].text='被改写的正文';assert.equal(scoreClassificationCase(sample,changed,units).coverage,false);
+const alias=data.cases.find(x=>x.id==='p3-01'),aliasResult={speakers:[{id:'doctor',name:'叶医生'}],segments:alias.expectedSpans.map(x=>({text:x.text,type:x.type,speakerId:x.type==='dialogue'?'doctor':'narrator'}))};assert.equal(scoreClassificationCase(alias,aliasResult,backend.speechSourceUnits(alias.text)).passed,true);
+const report={manifest,oracleOnly:true,liveCalls:0,mechanismChecks:['正文标注完整、样本分组不重叠','错误人物不能因音色正确而得分','错误没有提示时疑点召回为零','真实标注别名允许严格匹配','改写正文无法评分','UTF-16 原文定位与代理对覆盖'],metrics:summarizeClassificationScores(scores)};
+fs.mkdirSync('artifacts/tts-evaluation',{recursive:true});fs.writeFileSync('artifacts/tts-evaluation/scorer-verification.json',JSON.stringify(report,null,2));console.log(JSON.stringify(report,null,2));

@@ -1,0 +1,1 @@
+import fs from 'node:fs';const r=JSON.parse(fs.readFileSync('artifacts/tts-acceptance/real-plot-analysis.json')).body;for(const [i,s] of r.segments.entries())if(s.type!=='narration')console.log(JSON.stringify({i,text:s.text,type:s.type,speaker:r.speakers.find(p=>p.id===s.speakerId)?.name,emotion:s.emotion,review:s.reviewReasons}));

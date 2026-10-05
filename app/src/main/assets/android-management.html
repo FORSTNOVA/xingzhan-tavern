@@ -1,0 +1,20 @@
+<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>星栈酒馆 · 管理</title>
+<style>[hidden]{display:none!important}body{font:16px sans-serif;background:#191919;color:#e9e2d6;margin:0;padding:20px;line-height:1.6}main{max-width:650px;margin:auto}button,a{font:inherit;padding:12px;margin:6px 4px 6px 0;border-radius:10px;display:inline-block}button{background:#d8cdb8;color:#222;border:0}button:disabled{opacity:.4}a{color:#bcd8ed}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#272727;padding:12px;border-radius:10px}small{color:#bbb}label{display:block}</style>
+<main><h2>星栈酒馆 · 管理</h2><p>从官方 release 分支检查更新。准备完成后再切换，切换前备份数据；启动失败会恢复上一版本。</p>
+<div><button id="check">检查更新</button><button id="prepare">下载并准备</button><button id="activate">备份并启用</button><button id="rollback">回到上一版本</button></div>
+<button id="auto">自动检查</button><pre id="status">正在读取…</pre><p id="message" role="status"></p>
+<a id="restart" href="apk-tavern://restart" hidden>重启酒馆</a><br><a href="http://127.0.0.1:8787/">返回酒馆</a><a href="http://127.0.0.1:8787/android-probe">安卓功能验证</a><a href="/">后台运行验证</a>
+<p><small>扩展安装、更新和切换分支仍在酒馆原有扩展面板中。含原生依赖或安装脚本的新版本可能需要更新 APK。回滚程序保留当前聊天数据；备份位于应用私有目录。</small></p></main>
+<script>
+const token='__MANAGEMENT_TOKEN__';window.__apkManagement={request};
+async function request(action,method='POST'){const r=await fetch('/manage/api/'+action,{method,headers:{'X-Apk-Management':token}});const result=await r.json();if(!r.ok)throw Error(result.error);return result;}
+async function refresh(){const s=await request('status','GET');window.__apkManagement.status=s;
+ document.querySelector('#status').textContent=['当前：'+(s.active==='bundled'?'APK 内置版':s.active.slice(0,10)),'官方：'+(s.latest?.commit?.slice(0,10)||'尚未检查'),s.latest?.commit===(s.active==='bundled'?s.bundled:s.active)?'当前已是最新官方 release，可重新下载验证':'',s.staged?'已准备：'+s.staged.slice(0,10):'',s.job?[s.job.phase,s.job.detail,s.job.error].filter(Boolean).join(' · '):'',s.backup?'已保留更新前备份':'',s.lastError||''].filter(Boolean).join('\n');
+ document.querySelector('#auto').textContent='启动时检查更新：'+(s.autoCheck?'开':'关');
+ document.querySelector('#activate').disabled=!s.staged||s.staged===s.active||!!s.job?.running;
+ document.querySelector('#rollback').disabled=!s.previous||!!s.job?.running;
+ document.querySelector('#prepare').disabled=!!s.job?.running;
+}
+for(const action of ['check','prepare','activate','rollback','auto'])document.querySelector('#'+action).onclick=async()=>{try{document.querySelector('#message').textContent='正在处理…';const result=await request(action);document.querySelector('#message').textContent=result.restartRequired?'切换已准备，正在重启…':'操作完成';await refresh();if(result.restartRequired){document.querySelector('#restart').hidden=false;location.href='apk-tavern://restart';}}catch(e){document.querySelector('#message').textContent=e.message;}};
+refresh().catch(e=>document.querySelector('#message').textContent=e.message);setInterval(()=>refresh().catch(()=>{}),1500);
+</script>

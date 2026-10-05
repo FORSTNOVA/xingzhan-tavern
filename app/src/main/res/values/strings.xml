@@ -1,0 +1,6 @@
+<resources>
+    <string name="app_name">星栈酒馆</string>
+    <string name="server_channel_name">星栈酒馆 · 本地服务</string>
+    <string name="server_notification_title">星栈酒馆正在运行</string>
+    <string name="server_notification_text">本地服务已启动，点击返回星栈酒馆</string>
+</resources>

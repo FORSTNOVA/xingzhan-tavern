@@ -1,0 +1,757 @@
+{
+  "schemaVersion": 2,
+  "status": "30 条显式参考标注的合成专项样本；不是实际聊天准确率证明，真实模型基线尚待评估",
+  "cases": [
+    {
+      "id": "p0-01",
+      "name": "动作与台词分离",
+      "text": "北离拎着扫帚转身，说：“离远一点！”",
+      "expectedSpans": [
+        {
+          "text": "北离拎着扫帚转身，说：",
+          "type": "narration",
+          "speaker": "narrator"
+        },
+        {
+          "text": "“离远一点！”",
+          "type": "dialogue",
+          "speaker": "北离"
+        }
+      ],
+      "note": "人物动作不能因为出现姓名就使用人物声音",
+      "split": "development",
+      "tags": [
+        "动作与台词分离"
+      ]
+    },
+    {
+      "id": "p0-02",
+      "name": "后置发言人",
+      "text": "“请坐。”小林低声说道。",
+      "expectedSpans": [
+        {
+          "text": "“请坐。”",
+          "type": "dialogue",
+          "speaker": "小林"
+        },
+        {
+          "text": "小林低声说道。",
+          "type": "narration",
+          "speaker": "narrator"
+        }
+      ],
+      "note": "说话者在后句，后置归属仍有效",
+      "split": "development",
+      "tags": [
+        "后置发言人"
+      ]
+    },
+    {
+      "id": "p0-03",
+      "name": "引用与书名",
+      "text": "他看见书名“天空”和招牌“大地”。",
+      "expectedSpans": [
+        {
+          "text": "他看见书名“天空”和招牌“大地”。",
+          "type": "narration",
+          "speaker": "narrator"
+        }
+      ],
+      "note": "两个引号不等于两处真实发言",
+      "split": "development",
+      "tags": [
+        "引用与书名"
+      ]
+    },
+    {
+      "id": "p0-04",
+      "name": "新配角",
+      "text": "门卫喊道：“请出示证件！”",
+      "expectedSpans": [
+        {
+          "text": "门卫喊道：",
+          "type": "narration",
+          "speaker": "narrator"
+        },
+        {
+          "text": "“请出示证件！”",
+          "type": "dialogue",
+          "speaker": "门卫"
+        }
+      ],
+      "note": "人物可以不在聊天作者名单里",
+      "split": "development",
+      "tags": [
+        "新配角"
+      ]
+    },
+    {
+      "id": "p0-05",
+      "name": "第一人称叙述",
+      "text": "我推开门，雨水顺着袖口滴落。",
+      "expectedSpans": [
+        {
+          "text": "我推开门，雨水顺着袖口滴落。",
+          "type": "narration",
+          "speaker": "narrator"
+        }
+      ],
+      "note": "第一人称不自动认定为用户台词",
+      "split": "development",
+      "tags": [
+        "第一人称叙述"
+      ]
+    },
+    {
+      "id": "p0-06",
+      "name": "第一人称台词",
+      "text": "小雨说：“我已经到了。”",
+      "expectedSpans": [
+        {
+          "text": "小雨说：",
+          "type": "narration",
+          "speaker": "narrator"
+        },
+        {
+          "text": "“我已经到了。”",
+          "type": "dialogue",
+          "speaker": "小雨"
+        }
+      ],
+      "note": "以实际发言引导识别人物",
+      "split": "development",
+      "tags": [
+        "第一人称台词"
+      ]
+    },
+    {
+      "id": "p0-07",
+      "name": "无依据身份",
+      "text": "两人站在门前。“现在怎么办？”",
+      "expectedSpans": [
+        {
+          "text": "两人站在门前。",
+          "type": "narration",
+          "speaker": "narrator"
+        },
+        {
+          "text": "“现在怎么办？”",
+          "type": "dialogue",
+          "speaker": "__unresolved__"
+        }
+      ],
+      "note": "没有归属依据，不能按最近人名强行分配",
+      "split": "development",
+      "tags": [
+        "无依据身份"
+      ]
+    },
+    {
+      "id": "p0-08",
+      "name": "动作接后置台词",
+      "text": "不破谏拎着装备走向门口。“跟上！”他回头喊道。",
+      "expectedSpans": [
+        {
+          "text": "不破谏拎着装备走向门口。",
+          "type": "narration",
+          "speaker": "narrator"
+        },
+        {
+          "text": "“跟上！”",
+          "type": "dialogue",
+          "speaker": "不破谏"
+        },
+        {
+          "text": "他回头喊道。",
+          "type": "narration",
+          "speaker": "narrator"
+        }
+      ],
+      "note": "角色动作和说话引导都归旁白",
+      "split": "development",
+      "tags": [
+        "动作接后置台词"
+      ]
+    },
+    {
+      "id": "p0-09",
+      "name": "同时出现两个名字的发言归属",
+      "text": "小林看向小雨，问道：“你准备好了吗？”",
+      "expectedSpans": [
+        {
+          "text": "小林看向小雨，问道：",
+          "type": "narration",
+          "speaker": "narrator"
+        },
+        {
+          "text": "“你准备好了吗？”",
+          "type": "dialogue",
+          "speaker": "小林"
+        }
+      ],
+      "note": "短文本不会触发分批；这里只评估问话者与被问者区分，不计作跨批验证。",
+      "split": "development",
+      "tags": [
+        "跨批边界"
+      ]
+    },
+    {
+      "id": "p0-10",
+      "name": "英文发言",
+      "text": "\"Stay here,\" Alice said.",
+      "expectedSpans": [
+        {
+          "text": "\"Stay here,\"",
+          "type": "dialogue",
+          "speaker": "Alice"
+        },
+        {
+          "text": " Alice said.",
+          "type": "narration",
+          "speaker": "narrator"
+        }
+      ],
+      "note": "英文后置归属与双引号",
+      "split": "development",
+      "tags": [
+        "英文发言"
+      ]
+    },
+    {
+      "id": "p0-11",
+      "name": "拟声描述",
+      "text": "轰隆！铁门重重落下。",
+      "expectedSpans": [
+        {
+          "text": "轰隆！",
+          "type": "sfx",
+          "speaker": "narrator"
+        },
+        {
+          "text": "铁门重重落下。",
+          "type": "narration",
+          "speaker": "narrator"
+        }
+      ],
+      "note": "音效描述单独分类，不能当未知人物台词",
+      "split": "development",
+      "tags": [
+        "拟声描述"
+      ]
+    },
+    {
+      "id": "p0-12",
+      "name": "内心与引用",
+      "text": "小林想起老师常说的“别着急”。",
+      "expectedSpans": [
+        {
+          "text": "小林想起老师常说的“别着急”。",
+          "type": "narration",
+          "speaker": "narrator"
+        }
+      ],
+      "note": "回忆中的引用默认保守处理，非当前实际发言",
+      "split": "development",
+      "tags": [
+        "内心与引用"
+      ]
+    },
+    {
+      "id": "p0-13",
+      "name": "称呼冲突",
+      "text": "两位都姓林的医生在场。“林医生，请过来。”",
+      "expectedSpans": [
+        {
+          "text": "两位都姓林的医生在场。",
+          "type": "narration",
+          "speaker": "narrator"
+        },
+        {
+          "text": "“林医生，请过来。”",
+          "type": "dialogue",
+          "speaker": "__unresolved__"
+        }
+      ],
+      "note": "被称呼者不等于发言人，重名不自动合并",
+      "split": "development",
+      "tags": [
+        "称呼冲突"
+      ]
+    },
+    {
+      "id": "p0-14",
+      "name": "emoji原文覆盖",
+      "text": "😀 小雨抬手说道：\r\n“你好！”",
+      "expectedSpans": [
+        {
+          "text": "😀 小雨抬手说道：\r\n",
+          "type": "narration",
+          "speaker": "narrator"
+        },
+        {
+          "text": "“你好！”",
+          "type": "dialogue",
+          "speaker": "小雨"
+        }
+      ],
+      "note": "覆盖检查保留代理对、空白与原文",
+      "split": "development",
+      "tags": [
+        "emoji原文覆盖"
+      ]
+    },
+    {
+      "id": "p3-01",
+      "name": "世界书别名参考",
+      "text": "叶医生合上病历，说：“今天可以出院了。”",
+      "expectedSpans": [
+        {
+          "text": "叶医生合上病历，说：",
+          "type": "narration",
+          "speaker": "narrator"
+        },
+        {
+          "text": "“今天可以出院了。”",
+          "type": "dialogue",
+          "speaker": "叶清"
+        }
+      ],
+      "split": "development",
+      "tags": [
+        "世界书别名参考"
+      ],
+      "worldReferences": [
+        {
+          "world": "评估人物册",
+          "uid": "leaf",
+          "title": "叶清",
+          "keys": [
+            "叶医生",
+            "叶清"
+          ],
+          "content": "叶清是一位女性医生，人物别名为叶医生。"
+        }
+      ],
+      "expectedSpeakerAliases": {
+        "叶清": [
+          "叶医生"
+        ]
+      }
+    },
+    {
+      "id": "p3-02",
+      "name": "附近消息帮助辨认代词",
+      "text": "“钥匙在桌上。”她补充道。",
+      "expectedSpans": [
+        {
+          "text": "“钥匙在桌上。”",
+          "type": "dialogue",
+          "speaker": "苏岚"
+        },
+        {
+          "text": "她补充道。",
+          "type": "narration",
+          "speaker": "narrator"
+        }
+      ],
+      "split": "development",
+      "tags": [
+        "附近消息帮助辨认代词"
+      ],
+      "context": [
+        {
+          "id": "previous",
+          "name": "故事旁白",
+          "text": "屋里只有苏岚一人，她刚刚放下背包。"
+        }
+      ]
+    },
+    {
+      "id": "p3-03",
+      "name": "被称呼者不是发言人",
+      "text": "赵明对小陈说：“小陈，把窗户关上。”",
+      "expectedSpans": [
+        {
+          "text": "赵明对小陈说：",
+          "type": "narration",
+          "speaker": "narrator"
+        },
+        {
+          "text": "“小陈，把窗户关上。”",
+          "type": "dialogue",
+          "speaker": "赵明"
+        }
+      ],
+      "split": "development",
+      "tags": [
+        "被称呼者不是发言人"
+      ]
+    },
+    {
+      "id": "p3-04",
+      "name": "插入动作的多人对话",
+      "text": "周宁说：“我先去看看。”许薇拉住她的袖口，回答：“等我一起。”周宁点头：“好，我们走。”",
+      "expectedSpans": [
+        {
+          "text": "周宁说：",
+          "type": "narration",
+          "speaker": "narrator"
+        },
+        {
+          "text": "“我先去看看。”",
+          "type": "dialogue",
+          "speaker": "周宁"
+        },
+        {
+          "text": "许薇拉住她的袖口，回答：",
+          "type": "narration",
+          "speaker": "narrator"
+        },
+        {
+          "text": "“等我一起。”",
+          "type": "dialogue",
+          "speaker": "许薇"
+        },
+        {
+          "text": "周宁点头：",
+          "type": "narration",
+          "speaker": "narrator"
+        },
+        {
+          "text": "“好，我们走。”",
+          "type": "dialogue",
+          "speaker": "周宁"
+        }
+      ],
+      "split": "development",
+      "tags": [
+        "插入动作的多人对话"
+      ]
+    },
+    {
+      "id": "p3-05",
+      "name": "内心独白保守处理",
+      "text": "沈航心想：“这条路也许走不通。”",
+      "expectedSpans": [
+        {
+          "text": "沈航心想：“这条路也许走不通。”",
+          "type": "narration",
+          "speaker": "narrator"
+        }
+      ],
+      "split": "development",
+      "tags": [
+        "内心独白保守处理"
+      ]
+    },
+    {
+      "id": "p3-06",
+      "name": "混合标点和姓名后置",
+      "text": "「别碰那盏灯！」梁月喊道。\n许青退后一步，说：“我知道了……”",
+      "expectedSpans": [
+        {
+          "text": "「别碰那盏灯！」",
+          "type": "dialogue",
+          "speaker": "梁月"
+        },
+        {
+          "text": "梁月喊道。\n许青退后一步，说：",
+          "type": "narration",
+          "speaker": "narrator"
+        },
+        {
+          "text": "“我知道了……”",
+          "type": "dialogue",
+          "speaker": "许青"
+        }
+      ],
+      "split": "development",
+      "tags": [
+        "混合标点和姓名后置"
+      ]
+    },
+    {
+      "id": "p3-07",
+      "name": "长段动作伴随后置说话",
+      "text": "顾霖把沾满泥水的外套搭在椅背上。“外面还在下雨。”他望着门口说道。",
+      "expectedSpans": [
+        {
+          "text": "顾霖把沾满泥水的外套搭在椅背上。",
+          "type": "narration",
+          "speaker": "narrator"
+        },
+        {
+          "text": "“外面还在下雨。”",
+          "type": "dialogue",
+          "speaker": "顾霖"
+        },
+        {
+          "text": "他望着门口说道。",
+          "type": "narration",
+          "speaker": "narrator"
+        }
+      ],
+      "split": "holdout",
+      "tags": [
+        "长段动作伴随后置说话"
+      ]
+    },
+    {
+      "id": "p3-08",
+      "name": "同姓者在场且发言人明确",
+      "text": "陈远和陈清坐在桌边。陈清说：“这份报告由我提交。”",
+      "expectedSpans": [
+        {
+          "text": "陈远和陈清坐在桌边。陈清说：",
+          "type": "narration",
+          "speaker": "narrator"
+        },
+        {
+          "text": "“这份报告由我提交。”",
+          "type": "dialogue",
+          "speaker": "陈清"
+        }
+      ],
+      "split": "holdout",
+      "tags": [
+        "同姓者在场且发言人明确"
+      ]
+    },
+    {
+      "id": "p3-09",
+      "name": "名字带入引用不算发言",
+      "text": "白露抄下纸条上的“许舟，你好”，随后收起笔。",
+      "expectedSpans": [
+        {
+          "text": "白露抄下纸条上的“许舟，你好”，随后收起笔。",
+          "type": "narration",
+          "speaker": "narrator"
+        }
+      ],
+      "split": "holdout",
+      "tags": [
+        "名字带入引用不算发言"
+      ]
+    },
+    {
+      "id": "p3-10",
+      "name": "无引号但有明确说话引导",
+      "text": "方哲说：请把门关上。",
+      "expectedSpans": [
+        {
+          "text": "方哲说：",
+          "type": "narration",
+          "speaker": "narrator"
+        },
+        {
+          "text": "请把门关上。",
+          "type": "dialogue",
+          "speaker": "方哲"
+        }
+      ],
+      "split": "holdout",
+      "tags": [
+        "无引号但有明确说话引导"
+      ]
+    },
+    {
+      "id": "p3-11",
+      "name": "多人对话顺序明确",
+      "text": "陶然问：“车到了吗？”孟溪回答：“还没有。”陶然说：“那再等五分钟。”",
+      "expectedSpans": [
+        {
+          "text": "陶然问：",
+          "type": "narration",
+          "speaker": "narrator"
+        },
+        {
+          "text": "“车到了吗？”",
+          "type": "dialogue",
+          "speaker": "陶然"
+        },
+        {
+          "text": "孟溪回答：",
+          "type": "narration",
+          "speaker": "narrator"
+        },
+        {
+          "text": "“还没有。”",
+          "type": "dialogue",
+          "speaker": "孟溪"
+        },
+        {
+          "text": "陶然说：",
+          "type": "narration",
+          "speaker": "narrator"
+        },
+        {
+          "text": "“那再等五分钟。”",
+          "type": "dialogue",
+          "speaker": "陶然"
+        }
+      ],
+      "split": "holdout",
+      "tags": [
+        "多人对话顺序明确"
+      ]
+    },
+    {
+      "id": "p3-12",
+      "name": "未知发言人不按附近姓名猜",
+      "text": "陆川离开了房间。屋内另外三个人沉默了一会儿。“我们继续吧。”",
+      "expectedSpans": [
+        {
+          "text": "陆川离开了房间。屋内另外三个人沉默了一会儿。",
+          "type": "narration",
+          "speaker": "narrator"
+        },
+        {
+          "text": "“我们继续吧。”",
+          "type": "dialogue",
+          "speaker": "__unresolved__"
+        }
+      ],
+      "split": "holdout",
+      "tags": [
+        "未知发言人不按附近姓名猜"
+      ]
+    },
+    {
+      "id": "p3-13",
+      "name": "英语前置与后置归属",
+      "text": "Maya said, \"I will check the map.\" \"Take your time,\" Noah replied.",
+      "expectedSpans": [
+        {
+          "text": "Maya said, ",
+          "type": "narration",
+          "speaker": "narrator"
+        },
+        {
+          "text": "\"I will check the map.\"",
+          "type": "dialogue",
+          "speaker": "Maya"
+        },
+        {
+          "text": " ",
+          "type": "narration",
+          "speaker": "narrator"
+        },
+        {
+          "text": "\"Take your time,\"",
+          "type": "dialogue",
+          "speaker": "Noah"
+        },
+        {
+          "text": " Noah replied.",
+          "type": "narration",
+          "speaker": "narrator"
+        }
+      ],
+      "split": "holdout",
+      "tags": [
+        "英语前置与后置归属"
+      ]
+    },
+    {
+      "id": "p3-14",
+      "name": "人物喊声与动作描述区别",
+      "text": "警卫喊道：“停下！”警卫扶住了摇晃的设备。",
+      "expectedSpans": [
+        {
+          "text": "警卫喊道：",
+          "type": "narration",
+          "speaker": "narrator"
+        },
+        {
+          "text": "“停下！”",
+          "type": "dialogue",
+          "speaker": "警卫"
+        },
+        {
+          "text": "警卫扶住了摇晃的设备。",
+          "type": "narration",
+          "speaker": "narrator"
+        }
+      ],
+      "split": "holdout",
+      "tags": [
+        "人物喊声与机器音效区别"
+      ]
+    },
+    {
+      "id": "p3-15",
+      "name": "世界书不能替代发言证据",
+      "text": "温棠和韩墨都在门口。“先进去吧。”",
+      "expectedSpans": [
+        {
+          "text": "温棠和韩墨都在门口。",
+          "type": "narration",
+          "speaker": "narrator"
+        },
+        {
+          "text": "“先进去吧。”",
+          "type": "dialogue",
+          "speaker": "__unresolved__"
+        }
+      ],
+      "split": "holdout",
+      "tags": [
+        "世界书不能替代发言证据"
+      ],
+      "worldReferences": [
+        {
+          "world": "人物参考",
+          "uid": "wen",
+          "title": "温棠",
+          "keys": [
+            "温棠"
+          ],
+          "content": "温棠是女性调查员，擅长组织队伍。"
+        },
+        {
+          "world": "人物参考",
+          "uid": "han",
+          "title": "韩墨",
+          "keys": [
+            "韩墨"
+          ],
+          "content": "韩墨是男性医生，说话沉稳。"
+        }
+      ]
+    },
+    {
+      "id": "p3-16",
+      "name": "括号动作与实际台词",
+      "text": "秦舒（抬起手，指向远处）说道：“看见那座桥了吗？”",
+      "expectedSpans": [
+        {
+          "text": "秦舒（抬起手，指向远处）说道：",
+          "type": "narration",
+          "speaker": "narrator"
+        },
+        {
+          "text": "“看见那座桥了吗？”",
+          "type": "dialogue",
+          "speaker": "秦舒"
+        }
+      ],
+      "split": "holdout",
+      "tags": [
+        "括号动作与实际台词"
+      ]
+    }
+  ],
+  "annotationPolicy": "类型与发言人分别评估；无法判定用 __unresolved__；引语、内心活动保守归旁白；跨批机制另行测试。",
+  "pilotIds": [
+    "p0-01",
+    "p0-02",
+    "p0-03",
+    "p0-04",
+    "p0-07",
+    "p0-08",
+    "p0-10",
+    "p0-11",
+    "p0-12",
+    "p3-01"
+  ]
+}

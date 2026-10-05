@@ -1,0 +1,48 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import {connect} from './webview-cdp.mjs';
+const c=await connect(),reviewOnly=process.argv.includes('--review-only');
+try{
+ const result=await c.evaluate(`(async()=>{
+ for(let i=0;i<100&&!document.querySelector('#xingzhan-speech-dialog');i++)await new Promise(r=>setTimeout(r,100));
+ const m=await import('/scripts/extensions/third-party/xingzhan-synthesis/index.js'),media=await import('/scripts/extensions/third-party/xingzhan-synthesis/media.js'),{extension_settings}=await import('/scripts/extensions.js');
+ const settings=extension_settings.xingzhanSynthesis,previous=JSON.parse(JSON.stringify(settings)),originalFetch=window.fetch,originalPrompt=window.prompt,calls={analysis:0,apiTts:0,native:[]};
+ const scope={id:'card:system-context-test-'+Date.now(),label:'系统角色配音验证'},text='旁白。小林说：“真开心！”小雨说：“我很难过。”（音乐响起）',plan={model:'模拟文本分析模型',speakers:[{id:'lin',name:'小林',summary:'男性角色',aliases:[]},{id:'yu',name:'小雨',summary:'女性角色',aliases:[]}],segments:[{text:'旁白。',type:'narration',speakerId:'narrator',emotion:'平静',style:'自然'},{text:'小林说：“真开心！”',type:'dialogue',speakerId:'lin',emotion:'开心',style:'轻快'},{text:'小雨说：“我很难过。”',type:'dialogue',speakerId:'yu',emotion:'悲伤',style:'低落'},{text:'（音乐响起）',type:'bgm',speakerId:'narrator',emotion:'',style:''}]};
+ window.__systemContextTest={settings,previous,originalFetch,originalPrompt,calls,scope,plan};
+ window.fetch=async(url,options)=>{if(String(url).endsWith('/api/android/media/analyze')){calls.analysis++;const body=JSON.parse(options.body);if(body.analysisProvider!=='system'||body.context[0]?.text!=='前文角色说明')throw Error('上下文或系统分析来源未带入');const saved=await media.saveSpeechSession({text:body.text,result:plan,voices:{narrator:'Kore',lin:'Puck',yu:'Aoede'}},scope);return new Response(JSON.stringify({...plan,sessionId:saved.id}));}if(String(url).includes('/api/android/media/generate-tts')){calls.apiTts++;throw Error('误调用 API 语音');}return originalFetch.call(window,url,options);};
+ window.prompt=(message,value)=>{if(message.startsWith('__xingzhan_system_tts__:')){const body=JSON.parse(message.slice('__xingzhan_system_tts__:'.length));if(body.action==='synthesize')calls.native.push(body);}return originalPrompt.call(window,message,value);};
+ settings.speechProvider='system';await m.openSpeech({text,fullText:text,scope:'full',context:[{id:'lin',name:'小林',text:'前文角色说明'}],cardScope:scope});const root=document.querySelector('#xingzhan-speech-dialog');window.__systemContextTest.root=root;
+ const wait=async check=>{for(let i=0;i<500;i++){if(check())return;await new Promise(r=>setTimeout(r,40));}throw Error(root.querySelector('[data-system-status]').textContent);};window.__systemContextTest.wait=wait;
+ root.querySelector('[data-system-detect]').click();await wait(()=>!root.querySelector('[data-system-detect]').disabled);if(root.querySelector('[data-system-analyze]').disabled)throw Error('检测后分析按钮不可用');
+ root.querySelector('[data-system-analyze]').click();await wait(()=>!root.querySelector('[data-system-review]').hidden&&!root.querySelector('[data-system-analyze]').disabled);
+ const records=await media.listSpeechSessions(scope),record=await media.loadSpeechSession(records.sessions.find(x=>x.provider==='system').id,scope);
+ if(record.result.segments.map(x=>x.text).join('')!==text||!record.system.contextual)throw Error('分析没有无损保存');
+ const namedVoices=[...root.querySelector('[data-system-voice]').options].filter(x=>!x.disabled).map(x=>x.value);if(namedVoices.some(x=>x.includes('男'))&&namedVoices.some(x=>x.includes('女'))&&(record.result.segments[1].system.voice.includes('女')||!record.result.segments[2].system.voice.includes('女')))throw Error('人物性别没有匹配系统音色');
+ if(record.result.segments[1].system.rate<=record.result.segments[2].system.rate)throw Error('情绪映射未区分开心与悲伤');
+ const roles=[...root.querySelectorAll('[data-system-role]')];if(roles.length!==3)throw Error('角色审核数量错误');
+ const memory=await (await media.mediaRequest('system-memory?scope='+encodeURIComponent(scope.id))).json();if(memory.characters.length!==3)throw Error('角色音色记忆未保存');
+ const selected=roles.find(x=>x.dataset.systemRole==='lin');const other=[...selected.options].find(x=>!x.disabled&&x.value!==selected.value);if(other){selected.value=other.value;selected.dispatchEvent(new Event('change'));}
+ const emotion=root.querySelectorAll('[data-system-emotion]')[1];emotion.value='愤怒';emotion.dispatchEvent(new Event('change'));
+ await wait(()=>root.querySelector('[data-system-status]').textContent.includes('已保存'));await new Promise(r=>setTimeout(r,200));
+ const edited=await media.loadSpeechSession(record.id,scope);if(edited.result.segments[1].emotion!=='愤怒'||edited.result.segments[1].system.rate!==1.12)throw Error('逐段编辑未保存');
+ window.__systemContextTest.record=edited;
+ return {recordId:edited.id,analysisRequests:calls.analysis,roleCount:roles.length,emotionMapping:true,editSaved:true,memorySaved:true,bodyPreserved:true,apiTtsRequests:calls.apiTts};
+ })()`);
+ assert.equal(result.apiTtsRequests,0);
+ if(!reviewOnly){
+  const generated=await c.evaluate(`(async()=>{const t=window.__systemContextTest,media=await import('/scripts/extensions/third-party/xingzhan-synthesis/media.js');t.root.querySelector('[data-system-audio]').volume=0;t.root.querySelector('[data-system-generate]').click();await t.wait(()=>!t.root.querySelector('[data-system-generate]').disabled);let saved=await media.loadSpeechSession(t.record.id,t.scope);if(saved.audio.length!==3)throw Error(t.root.querySelector('[data-system-status]').textContent);if(t.calls.native.length!==3||t.calls.native.some(x=>x.text.includes('音乐响起')||x.text.includes('语速')))throw Error('正文与跳过片段错误');if(t.calls.native[1].rate!==1.12||t.calls.native[2].rate!==.88)throw Error('原生参数未分段生效');t.root.querySelector('[data-system-generate]').click();await t.wait(()=>!t.root.querySelector('[data-system-generate]').disabled);if(t.calls.native.length!==3)throw Error('缓存未复用');t.root.close();const m=await import('/scripts/extensions/third-party/xingzhan-synthesis/index.js');await m.openSpeech({text:t.record.text,fullText:t.record.text,scope:'full',cardScope:t.scope});if(t.root.querySelector('[data-system-play]').disabled||t.root.querySelector('[data-system-review]').hidden)throw Error('关闭恢复丢失审核或音频');const pitch=t.root.querySelectorAll('[data-system-segment-pitch]')[1];pitch.value='1.1';pitch.dispatchEvent(new Event('change'));await new Promise(r=>setTimeout(r,250));t.root.querySelector('[data-system-generate]').click();await t.wait(()=>!t.root.querySelector('[data-system-generate]').disabled);saved=await media.loadSpeechSession(t.record.id,t.scope);if(saved.audio.length!==3||t.calls.native.length!==4||t.calls.native[3].pitch!==1.1)throw Error('修改参数未只补生成对应片段');t.root.querySelector('[data-system-audio]').volume=0;return {nativeRequests:t.calls.native.length,apiTtsRequests:t.calls.apiTts,skippedSoundDescriptions:true,cacheReuse:true,restored:true,partialRegeneration:true};})()`);
+  Object.assign(result,generated);
+  await c.call('Runtime.evaluate',{expression:"document.querySelector('[data-system-play]').click()",userGesture:true});
+  await c.evaluate(`(async()=>{const t=window.__systemContextTest;await t.wait(()=>t.root.querySelector('[data-system-status]').textContent.includes('连续播放完成'));})()`);
+  result.continuousPlayback=true;
+  await c.evaluate(`(async()=>{const t=window.__systemContextTest,audio=t.root.querySelector('[data-system-audio]');audio.dispatchEvent(new Event('ended'));t.root.querySelector('[data-system-pause]').click();const media=await import('/scripts/extensions/third-party/xingzhan-synthesis/media.js'),saved=await media.loadSpeechSession(t.record.id,t.scope);if(audio.getAttribute('src')!==saved.audio.find(x=>x.index===1).url)throw Error('段间暂停后仍指向上一段');await new Promise(r=>setTimeout(r,400));if(!audio.paused)throw Error('段间暂停未取消自动播放');})()`);
+  await c.call('Runtime.evaluate',{expression:"document.querySelector('[data-system-play]').click()",userGesture:true});
+  await c.evaluate(`(async()=>{const t=window.__systemContextTest;await t.wait(()=>t.root.querySelector('[data-system-status]').textContent.includes('连续播放完成'));})()`);
+  result.pauseBetweenSegments=true;
+ }
+ const remembered=await c.evaluate(`(async()=>{const t=window.__systemContextTest,media=await import('/scripts/extensions/third-party/xingzhan-synthesis/media.js');const before=await (await media.mediaRequest('system-memory?scope='+encodeURIComponent(t.scope.id))).json();const expected=before.characters.find(x=>x.displayName==='小林').voice;t.plan.speakers[0].id='lin-new';t.plan.speakers[0].summary='女性角色';t.plan.segments[1].speakerId='lin-new';t.root.querySelector('[data-system-analyze]').click();await t.wait(()=>!t.root.querySelector('[data-system-analyze]').disabled);const records=await media.listSpeechSessions(t.scope),saved=await media.loadSpeechSession(records.sessions.find(x=>x.provider==='system').id,t.scope);if(saved.result.segments[1].system.voice!==expected)throw Error('角色标识变化后没有按名称复用已确认音色');return {memoryReusedAcrossAnalysis:true};})()`);
+ Object.assign(result,remembered);
+ fs.writeFileSync('artifacts/tts-probe/system-context-'+(reviewOnly?'emulator':'phone')+'.json',JSON.stringify(result,null,2));console.log(JSON.stringify(result,null,2));
+}finally{
+ await c.evaluate(`(async()=>{const t=window.__systemContextTest;if(!t)return;t.root?.close();await new Promise(r=>setTimeout(r,200));window.fetch=t.originalFetch;window.prompt=t.originalPrompt;for(const key of Object.keys(t.settings))delete t.settings[key];Object.assign(t.settings,t.previous);const {saveSettingsDebounced}=await import('/script.js');saveSettingsDebounced();delete window.__systemContextTest;})()`).catch(()=>{});c.close();
+}

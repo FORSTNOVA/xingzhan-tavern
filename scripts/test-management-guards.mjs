@@ -1,0 +1,8 @@
+import http from 'node:http';import fs from 'node:fs';import assert from 'node:assert/strict';
+function request(route,method='GET',headers={}){return new Promise((resolve,reject)=>{const req=http.request({host:'127.0.0.1',port:19788,path:route,method,headers},res=>{let text='';res.on('data',c=>text+=c);res.on('end',()=>resolve({code:res.statusCode,headers:res.headers,text}));});req.on('error',reject);req.end();});}
+const host={'Host':'127.0.0.1:8788'};const page=await request('/manage','GET',host);assert.equal(page.code,200);assert.equal(page.headers['x-frame-options'],'DENY');const token=page.text.match(/const token='([a-f0-9]{64})'/)[1];
+assert.equal((await request('/manage/api/activate','POST',host)).code,403);
+assert.equal((await request('/manage/api/rollback','POST',{...host,'X-Apk-Management':token,'Origin':'https://untrusted.example'})).code,403);
+assert.equal((await request('/manage','GET',{'Host':'untrusted.example'})).code,403);
+const auth={...host,'X-Apk-Management':token};const before=JSON.parse((await request('/manage/api/status','GET',auth)).text);await request('/manage/api/auto','POST',auth);const middle=JSON.parse((await request('/manage/api/status','GET',auth)).text);await request('/manage/api/auto','POST',auth);const after=JSON.parse((await request('/manage/api/status','GET',auth)).text);assert.notEqual(before.autoCheck,middle.autoCheck);assert.equal(before.autoCheck,after.autoCheck);
+const report={missingTokenRejected:true,foreignOriginRejected:true,foreignHostRejected:true,embeddingDenied:true,autoCheckToggleRestored:true};fs.writeFileSync('artifacts/features/management-guards.json',JSON.stringify(report,null,2));console.log(JSON.stringify(report));

@@ -1,0 +1,2 @@
+import {connect} from './webview-cdp.mjs';
+const c=await connect();try{console.log(JSON.stringify(await c.evaluate(`(async()=>{if(typeof speechSynthesis==='undefined')return {supported:false};speechSynthesis.getVoices();await new Promise(r=>setTimeout(r,1000));return {supported:true,voices:speechSynthesis.getVoices().map(v=>({name:v.name,lang:v.lang,local:v.localService}))};})()`),null,2));}finally{c.close();}

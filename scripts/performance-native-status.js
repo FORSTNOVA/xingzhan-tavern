@@ -1,0 +1,1 @@
+({profile:window.__apkMobilePerformance?.status(),enabled:localStorage.getItem('apk:mobile-performance:enabled'),style:document.querySelector('#apk-mobile-performance-style')?.textContent,visibility:document.visibilityState,frameRules:[...document.querySelectorAll('iframe')].map(f=>({isDeferred:!!f.closest('.apk-deferred-message')}))})

@@ -1,0 +1,3 @@
+import fs from 'node:fs';
+import {connect} from './webview-cdp.mjs';
+const c=await connect();try{const report=await c.evaluate(`(async()=>{const m=await import('/scripts/extensions/third-party/xingzhan-synthesis/system.js');return await m.nativeTts('detect');})()`);console.log(JSON.stringify({engines:report.engines,voiceCount:report.voices?.length,installed:report.voices?.filter(x=>x.installed).length,ready:report.ready,error:report.error},null,2));fs.writeFileSync('artifacts/tts-probe/native-'+(process.argv.includes('--emulator')?'emulator':'phone')+'.json',JSON.stringify(report,null,2));}finally{c.close();}

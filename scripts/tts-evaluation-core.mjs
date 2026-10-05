@@ -1,0 +1,29 @@
+import assert from 'node:assert/strict';
+export const TYPES=['narration','dialogue','sfx','bgm','ambience'];
+const normalize=x=>String(x||'').trim().toLowerCase();
+export function validateEvaluationDataset(dataset){
+ const ids=new Set(),texts=new Set();for(const c of dataset.cases){assert.ok(c.id&&!ids.has(c.id),'重复样本 ID');ids.add(c.id);assert.ok(['development','holdout'].includes(c.split));assert.equal(c.expectedSpans.map(x=>x.text).join(''),c.text,c.id+' 标注必须覆盖正文');for(const s of c.expectedSpans){assert.ok(TYPES.includes(s.type));assert.ok(s.speaker);}
+ const signature=JSON.stringify([c.text,c.context||[],c.worldReferences||[]]);assert.ok(!texts.has(signature),'重复文本与上下文');texts.add(signature);}
+ for(const id of dataset.pilotIds){assert.ok(ids.has(id));assert.equal(dataset.cases.find(x=>x.id===id).split,'development');}return {cases:ids.size,development:dataset.cases.filter(x=>x.split==='development').length,holdout:dataset.cases.filter(x=>x.split==='holdout').length};
+}
+function spansAt(spans){const map=[];for(const s of spans)for(let i=0;i<s.text.length;i++)map.push(s);return map;}
+function sameSpeaker(expected,predicted,result,c){
+ if(expected==='narrator'||expected==='__unresolved__')return predicted===expected;
+ const p=result.speakers?.find(x=>x.id===predicted),allowed=[expected,...c.expectedSpeakerAliases?.[expected]||[]].map(normalize);
+ return [p?.name,...p?.aliases||[],predicted].filter(Boolean).map(normalize).some(x=>allowed.includes(x));
+}
+function needsReview(segment,result){return !segment.reviewConfirmed&&((segment.reviewReasons||[]).length>0||segment.type==='dialogue'&&(['narrator','__unresolved__'].includes(segment.speakerId)||result.speakers?.find(x=>x.id===segment.speakerId)?.identityConflict));}
+export function scoreClassificationCase(c,result,units){
+ const available=Array.isArray(result?.segments),coverage=available&&result.segments.map(x=>x.text).join('')===c.text;
+ if(!coverage)return {id:c.id,name:c.name,split:c.split,available,coverage:false,unitCount:units.length,units:[],errors:[],reason:available?'回复未覆盖原文':'无可评分结果'};
+ const truth=spansAt(c.expectedSpans),pred=spansAt(result.segments),counts={characters:0,typeCorrectCharacters:0,dialogueCharacters:0,speakerCorrectCharacters:0},confusion={};let offset=0;
+ const assessments=units.map(unit=>{const points=[];for(const char of unit.text){if(/[\p{L}\p{N}]/u.test(char)){const expected=truth[offset],actual=pred[offset],typeCorrect=expected.type===actual.type,speakerCorrect=expected.type!=='dialogue'||actual.type==='dialogue'&&sameSpeaker(expected.speaker,actual.speakerId,result,c);counts.characters++;counts.typeCorrectCharacters+=+typeCorrect;if(expected.type==='dialogue'&&expected.speaker!=='__unresolved__'){counts.dialogueCharacters++;counts.speakerCorrectCharacters+=+speakerCorrect;}const key=expected.type+'→'+actual.type;confusion[key]=(confusion[key]||0)+1;points.push({expected,actual,typeCorrect,speakerCorrect});}offset+=char.length;}
+ const expectedTypes=[...new Set(points.map(x=>x.expected.type))],expectedSpeakers=[...new Set(points.filter(x=>x.expected.type==='dialogue').map(x=>x.expected.speaker))],relevant=points.length>0,flagged=points.some(x=>needsReview(x.actual,result)),typeCorrect=points.every(x=>x.typeCorrect),speakerCorrect=points.every(x=>x.speakerCorrect),knownDialogue=expectedTypes.length===1&&expectedTypes[0]==='dialogue'&&expectedSpeakers.length===1&&expectedSpeakers[0]!=='__unresolved__',unknownDialogue=expectedTypes.length===1&&expectedTypes[0]==='dialogue'&&expectedSpeakers[0]==='__unresolved__';
+ return {id:unit.id,text:unit.text,relevant,referenceMixed:expectedTypes.length>1||expectedSpeakers.length>1,expectedTypes,expectedSpeakers,predictedTypes:[...new Set(points.map(x=>x.actual.type))],predictedSpeakers:[...new Set(points.map(x=>x.actual.speakerId))],typeCorrect,speakerCorrect,knownDialogue,unknownDialogue,flagged,error:relevant&&(!typeCorrect||!speakerCorrect),motionNarration:expectedTypes.length===1&&expectedTypes[0]==='narration'&&/抬手|转身|拎着|走向|看向|站起|扶住|拉住|退后/.test(unit.text)};});
+ return {id:c.id,name:c.name,split:c.split,available:true,coverage:true,unitCount:units.length,counts,confusion,units:assessments,errors:assessments.filter(x=>x.error),passed:assessments.every(x=>!x.error)};
+}
+const rate=(correct,total)=>({correct,total,percent:total?Math.round(correct/total*10000)/100:null});
+export function summarizeClassificationScores(scores){
+ const accepted=scores.filter(x=>x.coverage),units=accepted.flatMap(x=>x.units).filter(x=>x.relevant),homogeneous=units.filter(x=>!x.referenceMixed),dialogue=homogeneous.filter(x=>x.knownDialogue),unknown=homogeneous.filter(x=>x.unknownDialogue),errors=units.filter(x=>x.error),flags=units.filter(x=>x.flagged),motions=homogeneous.filter(x=>x.motionNarration),sum=k=>accepted.reduce((n,c)=>n+(c.counts?.[k]||0),0);
+ return {returnedCoverage:rate(accepted.length,scores.length),wholeCaseCorrect:rate(accepted.filter(x=>x.passed).length,scores.length),typeUnits:rate(homogeneous.filter(x=>x.typeCorrect).length,homogeneous.length),typeCharacters:rate(sum('typeCorrectCharacters'),sum('characters')),knownSpeakerUnits:rate(dialogue.filter(x=>x.speakerCorrect).length,dialogue.length),knownSpeakerCharacters:rate(sum('speakerCorrectCharacters'),sum('dialogueCharacters')),unknownSpeakerUnits:rate(unknown.filter(x=>x.speakerCorrect).length,unknown.length),errorFlagRecall:rate(errors.filter(x=>x.flagged).length,errors.length),flagPrecision:rate(flags.filter(x=>x.error||x.unknownDialogue).length,flags.length),reviewUnits:rate(flags.length,units.length),motionMistakes:motions.filter(x=>x.predictedTypes.includes('dialogue')).length,motionUnits:motions.length,referenceMixedUnits:units.filter(x=>x.referenceMixed).length,acceptedCases:accepted.length,caseCount:scores.length};
+}

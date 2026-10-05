@@ -1,0 +1,10 @@
+import fs from 'node:fs';
+const base='http://127.0.0.1:19787';
+const csrf=await fetch(base+'/csrf-token');const {token}=await csrf.json();
+const cookie=csrf.headers.getSetCookie().map(v=>v.split(';')[0]).join('; ');
+const res=await fetch(base+'/api/characters/export',{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':token,Cookie:cookie},body:JSON.stringify({avatar_url:'TavernMark 酒馆排位赛.png',format:'json'})});
+if(!res.ok)throw new Error(`Export failed ${res.status}: ${await res.text()}`);
+const card=await res.json();fs.mkdirSync('artifacts/benchmark',{recursive:true});
+fs.writeFileSync('artifacts/benchmark/original-card.json',JSON.stringify(card,null,2));
+fs.writeFileSync('artifacts/benchmark/first-message.txt',card.data?.first_mes || card.first_mes || '');
+console.log(JSON.stringify({name:card.data?.name || card.name,messageLength:(card.data?.first_mes || card.first_mes || '').length,extensionKeys:Object.keys(card.data?.extensions || {})}));
