@@ -27,3 +27,4 @@ screen*.png
 **/__pycache__/
 *.pyc
 app/src/main/assets/tavern.zip
+release_assets/

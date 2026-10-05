@@ -1,19 +1,63 @@
-# 酒馆安卓整合验证原型
+# 星栈酒馆 (Xingzhan Tavern) - 安卓原生整合版
 
-这个项目用于验证：把完整 SillyTavern 后端放入安卓应用进程，再用系统 WebView 访问本机 HTTP 服务，是否能够运行。当前是开发验证版，尚未实现自动更新或生成任务重连。
+这个项目用于将完整的 SillyTavern 前后端系统直接嵌入 Android 原生应用进程中运行。通过系统 WebView 访问本机内嵌 Node.js HTTP 服务，无需安装 Termux、无需外部浏览器、不依赖第三方环境即可获得完整的单应用酒馆体验，并深度集成了 Android 系统原生能力与跨引擎本地离线语音合成（TTS）。
 
-模拟器结果见 `VALIDATION.md`；一加 13T / Android 16 实测及后台暂停问题见 `PHONE-VALIDATION.md`。真机基础功能已通过，但锁屏对照测试按用户要求暂停。
+---
 
-## 已实现
+## 📥 最新安装包下载 (Releases)
+
+可以在本项目的 [GitHub Releases 页面](https://github.com/FORSTNOVA/xingzhan-tavern/releases) 直接下载最新编译的 APK：
+
+| 安装包名称 | 文件名 | 说明 |
+| :--- | :--- | :--- |
+| **星栈酒馆主程序** | `xingzhan-tavern-v0.1-probe.apk` | 完整酒馆安卓应用，内嵌 Node 24 运行时、后台前台服务与系统级桥接。 |
+| **本地多音色 TTS 引擎** | `sherpa-onnx-tts-engine-vits-zh-aishell3-multi-voice.apk` | 配套本地离线语音合成引擎，内置 AIShell-3 174 位说话人多音色模型。 |
+
+> [!TIP]
+> 推荐同时安装上述两个 APK。酒馆安装后即可独立运行；配合安装本地 TTS 引擎后，可在无网络环境下享受超低延迟、多角色男女声自动分流的语音合成。
+
+---
+
+## 🎙️ 配套 TTS 引擎软件单独开源仓库
+
+为了让本地语音引擎也能作为标准 Android 系统 TTS 服务供系统和其他应用复用，该引擎已作为独立项目单独开源维护：
+
+- **开源仓库**：**[FORSTNOVA/xingzhan-tts-engine](https://github.com/FORSTNOVA/xingzhan-tts-engine)**
+- **独立 Releases**：[Xingzhan TTS Releases](https://github.com/FORSTNOVA/xingzhan-tts-engine/releases)
+- **技术基础**：基于开源 [k2-fsa/sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx) 扩展与重构，实现了符合 Android 标准 `TextToSpeechService` 的多音色枚举协商机制、说话人特征映射与端侧低延迟推理。
+
+---
+
+## ⚙️ TTS 引擎配置与跨引擎分流协同
+
+### 1. 启用系统 TTS 引擎
+1. 在手机上安装 `sherpa-onnx-tts-engine-vits-zh-aishell3-multi-voice.apk`。
+2. 打开手机系统 **「设置」** -> 搜索进入 **「文字转语音」** 或 **「文本转语音 (TTS)」**。
+3. 将 **首选引擎** 切换为 **SherpaOnnx**。
+4. 点击「试听」，听到中文测试语音即代表引擎已就绪。
+
+### 2. 在星栈酒馆中进行协同分流
+1. 打开星栈酒馆，点击右上角扩展中心，进入 **「星栈跨引擎语音合成 (xingzhan-synthesis)」** 插件。
+2. 引擎选择：
+   - **离线无网模式**：直接勾选 **「系统 / 本地 Sherpa 引擎」**，插件会自动检测并列出 174 位说话人列表（带男女声标签）。
+   - **混合分流模式**：可同时勾选 **星栈中转云端 TTS**、**酒馆内置 TTS** 及 **本地 Sherpa 引擎**。
+3. 分流规则：
+   - 旁白、主角色、次要配角可分别绑定不同音色或引擎；
+   - 支持根据角色特征自动分配男女声音色，兼顾云端极致音质与本地瞬时响应。
+
+---
+
+## 已实现核心功能
 
 - Java 安卓外壳，JNI 内嵌 Node，未使用 Termux、shell 或额外安装的浏览器。
 - 固定 SillyTavern 1.19.0，提交 `06bde939fb1e9c4c8d8641d810f0a916b5bce127`；后端源码保持原样。
-- Node 24.21.0，由社区项目 fogtape/nodejs-mobile 提供，发布标记 `v24.21.0-0`。这是社区构建，并非 nodejs-mobile 官方预编译版本。下载来源及本次记录的 SHA256 在 `scripts/prepare.ps1` 中；固定摘要用于重现，不代表独立的供应链审计。
+- Node 24.21.0，由社区项目 fogtape/nodejs-mobile 提供，发布标记 `v24.21.0-0`。
 - 本地服务 `127.0.0.1:8787`；验证页 `127.0.0.1:8788`。
 - 用户打开应用时启动前台服务，状态通知、服务就绪检测、WebView 渲染进程恢复、基础文件选择。
 - 使用原有 CSRF 校验；网络明文访问限定本地地址；无原生 JS bridge。
 - 两分钟后台任务测试：独立于网页连接，每秒保存片段，重开页面可查询。
-- 可关闭的流畅模式：通知中切换，每批加载 30 条历史，普通旧消息延后绘制。最新版本保留主题的快速界面和模糊设置，并加速超长文本粘贴及整段替换；主题实测见 [THEME-PERFORMANCE-VALIDATION.md](THEME-PERFORMANCE-VALIDATION.md)，当前安装包为 `artifacts/tavern-probe-theme.apk`。首轮对照见 [PERFORMANCE-VALIDATION.md](PERFORMANCE-VALIDATION.md)。
+- 可关闭的流畅模式：通知中切换，每批加载 30 条历史，普通旧消息延后绘制。
+- 完整跨引擎 TTS 分流与合成插件，支持安卓内置引擎、本地 Sherpa、星栈中转与官方 API 直连。
 
 ## 本机准备与构建
 
