@@ -41,9 +41,11 @@ public class NodeService extends Service {
     @Override public int onStartCommand(Intent intent, int flags, int startId) {
         if (started.compareAndSet(false, true)) new Thread(() -> {
             try {
+                long startupStartedAt = android.os.SystemClock.elapsedRealtime();
                 File root = new File(getFilesDir(), "tavern");
                 File marker = new File(root, ".ready-v1");
                 if (!marker.exists()) {
+                    long unpackStartedAt = android.os.SystemClock.elapsedRealtime();
                     root.mkdirs();
                     try (ZipInputStream zip = new ZipInputStream(getAssets().open("tavern.zip"))) {
                         ZipEntry entry; byte[] buffer = new byte[32768];
@@ -57,11 +59,16 @@ public class NodeService extends Service {
                         }
                     }
                     marker.createNewFile();
+                    Log.i("TavernStartup", "resource-unpack elapsedMs=" + (android.os.SystemClock.elapsedRealtime()-unpackStartedAt));
+                } else {
+                    Log.i("TavernStartup", "resource-unpack skipped=true");
                 }
+                long overlayStartedAt = android.os.SystemClock.elapsedRealtime();
                 File boot = new File(root, "android-bootstrap.mjs");
-                for(String name:new String[]{"android-bootstrap.mjs","android-updates.mjs","android-management.mjs","android-management.html","android-patches.mjs","android-git.mjs","android-routes.mjs","android-downloads.js","android-probe.html","android-media.mjs","android-media-patches.mjs","xingzhan-synthesis-manifest.json","xingzhan-synthesis-index.js","xingzhan-synthesis-media.js","xingzhan-synthesis-style.css","xingzhan-synthesis-system.js"}) {
+                for(String name:new String[]{"android-bootstrap.mjs","android-updates.mjs","android-management.mjs","android-management.html","android-patches.mjs","android-git.mjs","android-routes.mjs","android-downloads.js","android-probe.html","android-media.mjs","android-media-patches.mjs","android-characters.js","android-characters.version","xingzhan-synthesis-manifest.json","xingzhan-synthesis-index.js","xingzhan-synthesis-media.js","xingzhan-synthesis-style.css","xingzhan-synthesis-system.js","xingzhan-synthesis-kokoro-blend.js"}) {
                     try (InputStream in = getAssets().open(name); OutputStream out = new FileOutputStream(new File(root,name))) { byte[] buffer = new byte[32768]; int n; while ((n=in.read(buffer))>0) out.write(buffer,0,n); }
                 }
+                Log.i("TavernStartup", "android-assets-copy elapsedMs=" + (android.os.SystemClock.elapsedRealtime()-overlayStartedAt));
                 File restartRequest=new File(root,".apk-restart-request");
                 if(restartRequest.exists()&&!restartRequest.delete())throw new IOException("Cannot clear old restart request");
                 new Thread(()->{
@@ -74,8 +81,10 @@ public class NodeService extends Service {
                         }
                     }
                 },"UpdateRecovery").start();
+                long nativeStartedAt = android.os.SystemClock.elapsedRealtime();
                 System.loadLibrary("node");
                 System.loadLibrary("tavernbridge");
+                Log.i("TavernStartup", "native-load elapsedMs=" + (android.os.SystemClock.elapsedRealtime()-nativeStartedAt) + " totalMs=" + (android.os.SystemClock.elapsedRealtime()-startupStartedAt));
                 int result = startNode(boot.getAbsolutePath(), root.getAbsolutePath());
                 Log.e("TavernProbe", "Node returned: " + result);
                 recoverPendingUpdate(root,"更新程序退出，已恢复上一版本");

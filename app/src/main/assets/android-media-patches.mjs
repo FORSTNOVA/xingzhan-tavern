@@ -26,7 +26,7 @@ export async function patchMedia(root,assetRoot){
   const before=text;for(const [from,to] of edits)text=text.replace(from,to);if(text!==before)await fs.writeFile(target,text);
  }
  const plugin=path.join(assetRoot,'.android-global-extensions','xingzhan-synthesis');await fs.mkdir(plugin,{recursive:true});
- const files=['manifest.json','index.js','media.js','style.css','system.js'];const hash=createHash('sha256');for(const name of files)hash.update(await fs.readFile(path.join(assetRoot,'xingzhan-synthesis-'+name)));const bundledHash=hash.digest('hex');
+ const files=['manifest.json','index.js','media.js','style.css','system.js','kokoro-blend.js'];const hash=createHash('sha256');for(const name of files)hash.update(await fs.readFile(path.join(assetRoot,'xingzhan-synthesis-'+name)));const bundledHash=hash.digest('hex');
  let installedHash;try{installedHash=await fs.readFile(path.join(plugin,'.apk-bundle-hash'),'utf8');}catch(error){if(error.code!=='ENOENT')throw error;}
  if(installedHash!==bundledHash){for(const name of files)await fs.copyFile(path.join(assetRoot,'xingzhan-synthesis-'+name),path.join(plugin,name));await fs.writeFile(path.join(plugin,'.apk-bundle-hash'),bundledHash);}
  const users=path.join(assetRoot,'data');let entries=[];try{entries=await fs.readdir(users,{withFileTypes:true});}catch(error){if(error.code!=='ENOENT')throw error;}

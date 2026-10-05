@@ -6,6 +6,7 @@ const source=path.join(root,'vendor','SillyTavern');
 const require=createRequire(path.join(source,'package.json'));
 const archiver=require('archiver');
 const yaml=require('yaml');
+const packageInfo=require(path.join(source,'package.json'));
 const config=yaml.parse(fs.readFileSync(path.join(source,'default','config.yaml'),'utf8'));
 config.browserLaunch.enabled=false;
 config.listen=false;
@@ -24,4 +25,7 @@ zip.glob('**/*',{cwd:source,dot:true,ignore:['.git/**','data/**','config.yaml','
 zip.append(yaml.stringify(config),{name:'config.yaml'});
 await zip.finalize();
 await new Promise((resolve,reject)=>{out.on('close',resolve);out.on('error',reject)});
+const assets=path.join(root,'app','src','main','assets');
+fs.copyFileSync(path.join(source,'src','endpoints','characters.js'),path.join(assets,'android-characters.js'));
+fs.writeFileSync(path.join(assets,'android-characters.version'),String(packageInfo.version));
 console.log(`Packed ${zip.pointer()} bytes to ${dest}`);

@@ -22,6 +22,7 @@ public class MainActivity extends Activity {
     private String downloadScript = "";
     private boolean togglePerformanceAfterLoad;
     private final Handler handler = new Handler(Looper.getMainLooper());
+    private final long startupStartedAt = SystemClock.elapsedRealtime();
     private WebView web;
     private SystemTtsBridge systemTts;
     private String systemTtsToken="";
@@ -69,7 +70,7 @@ public class MainActivity extends Activity {
                     HttpURLConnection conn = (HttpURLConnection)new URL("http://127.0.0.1:8787/").openConnection();
                     conn.setConnectTimeout(1000); conn.setReadTimeout(1000);
                     int code; try { code = conn.getResponseCode(); } finally { conn.disconnect(); }
-                    if (code == 200) { handler.post(() -> { if (!destroyed) { status.setVisibility(android.view.View.GONE); load(currentUrl); } }); return; }
+                    if (code == 200) { android.util.Log.i("TavernStartup", "server-ready elapsedMs=" + (SystemClock.elapsedRealtime()-startupStartedAt)); handler.post(() -> { if (!destroyed) { status.setVisibility(android.view.View.GONE); load(currentUrl); } }); return; }
                 } catch (Exception ignored) { }
                 try { Thread.sleep(1000); } catch (InterruptedException e) { return; }
             }
@@ -107,7 +108,7 @@ public class MainActivity extends Activity {
             }else saveDownload(url,userAgent,disposition,mime,length);
         });
         web.setWebViewClient(new WebViewClient() {
-            @Override public void onPageStarted(WebView view,String url,android.graphics.Bitmap icon){systemTtsToken="";if(systemTts!=null)systemTts.close();}
+            @Override public void onPageStarted(WebView view,String url,android.graphics.Bitmap icon){android.util.Log.i("TavernStartup", "page-start port=" + Uri.parse(url).getPort() + " elapsedMs=" + (SystemClock.elapsedRealtime()-startupStartedAt));systemTtsToken="";if(systemTts!=null)systemTts.close();}
             @Override public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
                 // Route only top-level links. Cards create blob/srcdoc subframes;
                 // cancelling those navigations leaves them stuck on about:blank.
@@ -125,6 +126,7 @@ public class MainActivity extends Activity {
             }
             @Override public void onPageFinished(WebView view, String url) {
                 android.util.Log.i("TavernProbe", "Page loaded: " + url);
+                android.util.Log.i("TavernStartup", "page-finished port=" + Uri.parse(url).getPort() + " elapsedMs=" + (SystemClock.elapsedRealtime()-startupStartedAt));
                 if (url.startsWith("http://127.0.0.1:8787/")) {
                     if (togglePerformanceAfterLoad) { togglePerformanceAfterLoad=false; view.evaluateJavascript("window.__APK_PERFORMANCE_TOGGLE_REQUESTED__=true;", null); }
                     // A document script supplies the page's base URL for dynamic imports.

@@ -1,0 +1,22 @@
+import assert from 'node:assert/strict';
+import {createKokoroBlend,KOKORO_VOICE_BYTES} from '../plugins/xingzhan-synthesis/kokoro-blend.js';
+
+const source=new Uint8Array(3*KOKORO_VOICE_BYTES);
+for(let id=0;id<3;id++)for(let offset=0;offset<KOKORO_VOICE_BYTES;offset+=4)new DataView(source.buffer).setFloat32(id*KOKORO_VOICE_BYTES+offset,id+1,true);
+const index=[0,1,2].map(id=>({id,name:`voice-${id}`,gender:id===0?'female':'male',f0:100+id}));
+const result=await createKokoroBlend(new Blob([source]),index,{a:0,b:1,target:2,ratio:.25});
+assert.equal(result.binary.size,source.byteLength);
+assert.equal(result.voiceCount,3);
+assert.equal(result.targetInfo.name,'融合 voice-0 25% + voice-1 75%');
+assert.equal(result.index.type,'application/json');
+const output=new DataView(await result.binary.slice(2*KOKORO_VOICE_BYTES,2*KOKORO_VOICE_BYTES+4).arrayBuffer());
+assert.equal(output.getFloat32(0,true),1.75);
+const before=new DataView(await result.binary.slice(0,4).arrayBuffer());
+assert.equal(before.getFloat32(0,true),1);
+const updated=JSON.parse(await result.index.text());
+assert.deepEqual(updated.slice(0,2),index.slice(0,2));
+assert.equal(updated[2].gender,'mixed');
+await assert.rejects(()=>createKokoroBlend(new Blob([source]),index,{a:0,b:0,target:2,ratio:.5}),/不同音色/);
+await assert.rejects(()=>createKokoroBlend(new Blob([source]),index,{a:0,b:1,target:2,ratio:1.1}),/比例/);
+await assert.rejects(()=>createKokoroBlend(new Blob([source.slice(0,source.length-1)]),index,{a:0,b:1,target:2,ratio:.5}),/文件大小/);
+console.log('Kokoro blend utility tests passed');

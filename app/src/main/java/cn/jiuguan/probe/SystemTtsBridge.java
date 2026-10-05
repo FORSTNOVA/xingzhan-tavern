@@ -32,7 +32,9 @@ final class SystemTtsBridge {
     private JSONArray engines() throws Exception {
         JSONArray list=new JSONArray();for(ResolveInfo info:activity.getPackageManager().queryIntentServices(new Intent(TextToSpeech.Engine.INTENT_ACTION_TTS_SERVICE),0)){
             if(info.serviceInfo==null||!info.serviceInfo.exported||!info.serviceInfo.enabled)continue;
-            list.put(new JSONObject().put("package",info.serviceInfo.packageName).put("label",info.loadLabel(activity.getPackageManager()).toString()));
+            String packageName=info.serviceInfo.packageName,version="";long versionCode=0;
+            try{android.content.pm.PackageInfo packageInfo=activity.getPackageManager().getPackageInfo(packageName,0);version=packageInfo.versionName==null?"":packageInfo.versionName;versionCode=packageInfo.getLongVersionCode();}catch(Exception ignored){}
+            list.put(new JSONObject().put("package",packageName).put("label",info.loadLabel(activity.getPackageManager()).toString()).put("version",version).put("versionCode",versionCode));
         }return list;
     }
     void dispatch(JSONObject request){
@@ -54,8 +56,12 @@ final class SystemTtsBridge {
         }catch(Exception error){finish(null,error.getMessage());}
     }
     private JSONObject inventory(JSONArray installed)throws Exception{
-        JSONArray voices=new JSONArray();Set<Voice> available=tts.getVoices();if(available!=null){List<Voice> sorted=new ArrayList<>(available);sorted.sort(Comparator.comparing(Voice::getName));for(Voice voice:sorted)voices.put(new JSONObject().put("name",voice.getName()).put("language",voice.getLocale().toLanguageTag()).put("networkRequired",voice.isNetworkConnectionRequired()).put("installed",!voice.getFeatures().contains(TextToSpeech.Engine.KEY_FEATURE_NOT_INSTALLED)).put("quality",voice.getQuality()));}
-        Voice selected=tts.getVoice();return new JSONObject().put("engines",installed).put("selectedEngine",engine).put("voices",voices).put("ready",true).put("defaultVoice",selected==null?"":selected.getName()).put("maxTextLength",TextToSpeech.getMaxSpeechInputLength());
+        JSONArray voices=new JSONArray(),languages=new JSONArray(),features;Set<String> languageSet=new TreeSet<>(),nativeEmotions=new TreeSet<>();int localCount=0,networkCount=0;
+        Set<Voice> available=tts.getVoices();if(available!=null){List<Voice> sorted=new ArrayList<>(available);sorted.sort(Comparator.comparing(Voice::getName));for(Voice voice:sorted){Set<String> voiceFeatures=voice.getFeatures();boolean network=voice.isNetworkConnectionRequired(),voiceInstalled=!voiceFeatures.contains(TextToSpeech.Engine.KEY_FEATURE_NOT_INSTALLED);if(network)networkCount++;else localCount++;languageSet.add(voice.getLocale().toLanguageTag());features=new JSONArray();List<String> orderedFeatures=new ArrayList<>(voiceFeatures);Collections.sort(orderedFeatures);for(String feature:orderedFeatures){features.put(feature);if(feature.matches("(?i).*(emotion|expressive|style|ssml).*"))nativeEmotions.add(feature);}voices.put(new JSONObject().put("name",voice.getName()).put("language",voice.getLocale().toLanguageTag()).put("networkRequired",network).put("installed",voiceInstalled).put("quality",voice.getQuality()).put("latency",voice.getLatency()).put("features",features));}}
+        for(String language:languageSet)languages.put(language);
+        Voice selected=tts.getVoice();JSONObject capabilities=new JSONObject().put("voiceSelection",voices.length()>0).put("rate",true).put("pitch",true).put("emotion",nativeEmotions.isEmpty()?"mapped":"native").put("emotionFeatures",new JSONArray(nativeEmotions)).put("localVoiceCount",localCount).put("networkVoiceCount",networkCount).put("languages",languages);
+        String engineVersion="";for(int i=0;i<installed.length();i++){JSONObject item=installed.getJSONObject(i);if(item.optString("package").equals(engine)){engineVersion=item.optString("version");break;}}
+        return new JSONObject().put("engines",installed).put("selectedEngine",engine).put("engineVersion",engineVersion).put("voices",voices).put("capabilities",capabilities).put("ready",true).put("defaultVoice",selected==null?"":selected.getName()).put("maxTextLength",TextToSpeech.getMaxSpeechInputLength());
     }
     private void synthesize(JSONObject request,int ticket)throws Exception{
         String text=request.optString("text").trim(),scope=request.optString("scopeId"),name=request.optString("voice");
