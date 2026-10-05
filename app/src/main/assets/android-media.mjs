@@ -920,7 +920,7 @@ export function installMediaRoutes(app){
  app.post('/api/android/media/memory',(req,res)=>{
   try{
    const source=Array.isArray(req.body.characters)?req.body.characters:[];if(source.length>500)throw Error('角色记忆数量超过限制');
-   const characters=source.map(x=>{const characterId=String(x?.characterId||'').slice(0,120),voiceId=String(x?.voiceId||'');if(!characterId||!/^[A-Za-z0-9_-]{1,80}$/.test(voiceId))throw Error('角色标识或音色格式不正确');return {characterId,displayName:String(x.displayName||'').slice(0,80),aliases:Array.isArray(x.aliases)?x.aliases.slice(0,10).map(a=>String(a).slice(0,80)):[],voiceId,summary:String(x.summary||'').slice(0,300),updatedAt:new Date().toISOString(),confirmed:true};});
+   const characters=source.map(x=>{const characterId=String(x?.characterId||'').slice(0,120),voiceId=String(x?.voiceId||'');if(!characterId||!voiceId||voiceId.length>300||/[\u0000-\u001f\u007f]/u.test(voiceId))throw Error('角色标识或音色格式不正确');return {characterId,displayName:String(x.displayName||'').slice(0,80),aliases:Array.isArray(x.aliases)?x.aliases.slice(0,10).map(a=>String(a).slice(0,80)):[],voiceId,summary:String(x.summary||'').slice(0,300),updatedAt:new Date().toISOString(),confirmed:true};});
    const db=readDatabase(req);db.characters=characters;writeDatabase(req,db);res.set('Cache-Control','no-store').json({schemaVersion:2,characters});
   }catch(error){res.status(400).json({error:error.message});}
  });

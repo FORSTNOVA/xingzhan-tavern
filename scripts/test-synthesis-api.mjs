@@ -43,6 +43,7 @@ try{
  await fs.writeFile(path.join(root,'xingzhan-media.json'),JSON.stringify({tts:{model:'gemini-3.8-flash-lite-tts'}}));
  const invoke=async(method,route,body={},params={},scope='card:A')=>{const r=response();await routes.get(method+' /api/android/media/'+route)({...req({scopeId:scope,...body}),params,query:{scope}},r);assert.equal(r.statusCode,200,JSON.stringify(r.result));return r;};
  for(const [scope,voice] of [['card:A','Puck'],['card:B','Kore']])await invoke('POST','memory',{characters:[{characterId:role,voiceId:voice}]},{},scope);
+ const extendedVoiceName='speaker-0: af_maple (女声) (女声·少女)';await invoke('POST','memory',{characters:[{characterId:role,voiceId:extendedVoiceName}]},{},'card:C');assert.equal((await invoke('GET','memory',{},{},'card:C')).result.characters[0].voiceId,extendedVoiceName);
  assert.equal((await invoke('GET','memory')).result.characters[0].voiceId,'Puck');assert.equal((await invoke('GET','memory',{},{},'card:B')).result.characters[0].voiceId,'Kore');
  const record=(await invoke('POST','session',{text:source,result:analysis.result,voices:{narrator:'Kore',[role]:'Puck'}})).result;
  calls=[];globalThis.fetch=async(url,options)=>{calls.push({url,options});return new Response(JSON.stringify({candidates:[{content:{parts:[{inlineData:{mimeType:'audio/pcm;rate=24000',data:Buffer.alloc(4800).toString('base64')}}]}}]}));};

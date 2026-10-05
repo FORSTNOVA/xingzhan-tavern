@@ -503,7 +503,7 @@ export function renderReview(result,record=activeSession){
   }
 
   updateVoiceOptionsForProfile();
-  voices[profile.id]=record?.voices?.[profile.id]||voiceSelect.value;
+  {const saved=record?.voices?.[profile.id];voices[profile.id]=saved&&[...voiceSelect.options].some(o=>o.value===saved)?saved:voiceSelect.value;}
 
   engineSelect.onchange=()=>{
    characterEngines[profile.id]=engineSelect.value;
@@ -717,7 +717,15 @@ async function generateSpeech(result,profiles,voices,characterEngines,host){
    const segment=segments[index];
    const speakerId=segment.speakerId;
    const engine=characterEngines[speakerId]||'gemini';
-   const voice=voices[speakerId]||'Kore';
+   let voice=voices[speakerId]||'Kore';
+    if(engine!=='gemini'){
+     const pool=getVoicesForEngine(engine);
+     if(!pool.some(v=>v.name===voice)){
+      const wantMale=classifyCharacterGender(profiles.get(speakerId)||{})==='male';
+      const pick=pool.find(v=>v.installed!==false&&(wantMale?v.gender==='male':v.gender!=='male'))||pool.find(v=>v.installed!==false)||pool[0];
+      voice=pick.name;voices[speakerId]=voice;
+     }
+    }
    const style=[segment.emotion,segment.style].filter(Boolean).join('；').slice(0,500);
 
    if(session.audio?.some(x=>x.index===index&&x.text===segment.text.trim()&&x.style===style))continue;
@@ -730,10 +738,10 @@ async function generateSpeech(result,profiles,voices,characterEngines,host){
    }else{
     const targetPkg=getEnginePackage(engine);
     const params=emotionParameters(segment.emotion,segment.style,{rate:1,pitch:1},segment.intensity);
-    const intensityStr=(segment.intensity!==undefined&&segment.intensity!==null)?`:${segment.intensity}`:'';
-    const emotionTag=segment.emotion?`[${segment.emotion}${intensityStr}] `:'';
-    const textToSend=emotionTag+segment.text;
+    const textToSend=segment.text;
     segment.system={engine:targetPkg,voice,rate:params.rate,pitch:params.pitch,pauseMs:params.pauseMs};
+     await persistDraft();
+     if(controller.signal.aborted)throw new DOMException('Cancelled','AbortError');
     const generated=await nativeTts('synthesize',{engine:targetPkg,voice,rate:params.rate,pitch:params.pitch,text:textToSend,scopeId:scope.id});
     if(controller.signal.aborted)throw new DOMException('Cancelled','AbortError');
     await mediaRequest('system-clip',{key:generated.key,sessionId:session.id,segmentIndex:index,scopeId:scope.id});
