@@ -71,7 +71,12 @@ function getEnginePackage(engineId) {
 
 export async function detectAllEngines() {
  const statusEl = workspace?.querySelector('[data-engine-pool-status]');
+ const refreshButton=workspace?.querySelector('[data-detect-all-engines]');
+ const reportPanel=workspace?.querySelector('[data-local-model-report]');
+ const reportEl=workspace?.querySelector('[data-local-model-report-content]');
+ const reports=[];
  if (statusEl) statusEl.textContent = '正在检测已安装引擎及音色…';
+ if(refreshButton){refreshButton.disabled=true;refreshButton.textContent='正在扫描…';}
  try {
   if (typeof window !== 'undefined' && window.__apkSystemTtsAvailable) {
    const categorized = await detectSystemEngines();
@@ -79,40 +84,61 @@ export async function detectAllEngines() {
    if (categorized.sherpa) {
     try {
      const sherpaRes = await nativeTts('detect', { engine: categorized.sherpa.package });
+     reports.push({label:categorized.sherpa.label||'Sherpa 本地引擎',package:categorized.sherpa.package,result:sherpaRes});
      engineVoices.sherpa = (sherpaRes.voices || []).map(v => ({
       name: v.name,
       label: `${v.name} · ${voiceGenderLabel(v)} · ${v.language || 'zh'}`,
       gender: classifyVoiceGender(v),
-      installed: v.installed
+      installed: v.installed,
+      language:v.language,
+      networkRequired:v.networkRequired,
+      quality:v.quality,
+      latency:v.latency,
+      features:v.features||[]
      }));
     } catch (e) {
      console.warn('Detect sherpa voices failed', e);
+     reports.push({label:categorized.sherpa.label||'Sherpa 本地引擎',package:categorized.sherpa.package,error:e.message});
     }
    }
    if (categorized.builtin) {
     try {
      const builtinRes = await nativeTts('detect', { engine: categorized.builtin.package });
+     reports.push({label:categorized.builtin.label||'系统内置引擎',package:categorized.builtin.package,result:builtinRes});
      engineVoices.builtin = (builtinRes.voices || []).map(v => ({
       name: v.name,
       label: `${v.name} · ${voiceGenderLabel(v)} · ${v.language || 'zh'}`,
       gender: classifyVoiceGender(v),
-      installed: v.installed
+      installed: v.installed,
+      language:v.language,
+      networkRequired:v.networkRequired,
+      quality:v.quality,
+      latency:v.latency,
+      features:v.features||[]
      }));
     } catch (e) {
      console.warn('Detect builtin voices failed', e);
+     reports.push({label:categorized.builtin.label||'系统内置引擎',package:categorized.builtin.package,error:e.message});
     }
    }
    if (categorized.other_local?.length) {
     try {
      const otherRes = await nativeTts('detect', { engine: categorized.other_local[0].package });
+     reports.push({label:categorized.other_local[0].label||'其他本地引擎',package:categorized.other_local[0].package,result:otherRes});
      engineVoices.other_local = (otherRes.voices || []).map(v => ({
       name: v.name,
       label: `${v.name} · ${voiceGenderLabel(v)} · ${v.language || 'zh'}`,
       gender: classifyVoiceGender(v),
-      installed: v.installed
+      installed: v.installed,
+      language:v.language,
+      networkRequired:v.networkRequired,
+      quality:v.quality,
+      latency:v.latency,
+      features:v.features||[]
      }));
     } catch (e) {
      console.warn('Detect other_local voices failed', e);
+     reports.push({label:categorized.other_local[0].label||'其他本地引擎',package:categorized.other_local[0].package,error:e.message});
     }
    }
   }
@@ -122,8 +148,22 @@ export async function detectAllEngines() {
   if (installedEngines.other_local.length) summary.push(`其他本地 (${installedEngines.other_local.length} 引擎)`);
   summary.push(`星栈中转 (${engineVoices.gemini.length} 音色)`);
   if (statusEl) statusEl.textContent = `引擎就绪：${summary.join('、')}。`;
+  if(reportEl){
+   reportPanel.hidden=!reports.length;
+   reportEl.innerHTML=reports.map(({label,package:pkg,result,error})=>{
+    if(error)return `<section><b>${escapeHtml(label)}</b><p>读取失败：${escapeHtml(error)}</p></section>`;
+    const voices=result.voices||[],caps=result.capabilities||{},installed=voices.filter(v=>v.installed).length;
+    const emotion=caps.emotion==='native'?'检测到引擎声明的原生情绪特征：'+(caps.emotionFeatures||[]).join('、'):'未检测到原生情绪接口；角色情绪由插件映射为语速、音高和停顿变化。';
+    const voiceRows=voices.map(v=>`<li><b>${escapeHtml(v.name)}</b> · ${escapeHtml(v.language||'未知语言')} · ${v.installed?'已安装':'未下载'} · ${v.networkRequired?'联网':'本地'} · 质量 ${Number.isFinite(v.quality)?v.quality:'未知'} · 延迟 ${Number.isFinite(v.latency)?v.latency+'ms':'未知'}${v.features?.length?' · 能力：'+escapeHtml(v.features.join('、')):''}</li>`).join('');
+    return `<section><b>${escapeHtml(label)}</b><small style="display:block;word-break:break-all">${escapeHtml(pkg)}${result.engineVersion?' · 版本 '+escapeHtml(result.engineVersion):''}</small><p>扫描到 ${voices.length} 个音色，已安装 ${installed} 个；本地 ${caps.localVoiceCount??voices.filter(v=>!v.networkRequired).length} 个，联网 ${caps.networkVoiceCount??voices.filter(v=>v.networkRequired).length} 个。可选音色、语速与音高；${emotion}</p><details><summary>查看音色与能力明细</summary><ul style="max-height:260px;overflow:auto;padding-left:22px">${voiceRows||'<li>引擎没有公布音色列表</li>'}</ul></details></section>`;
+   }).join('');
+  }
+  if(activeSession?.result)renderReview(activeSession.result,activeSession);
  } catch (err) {
   if (statusEl) statusEl.textContent = '引擎检测提示：' + err.message;
+  if(reportEl){reportPanel.hidden=false;reportEl.textContent='本地模型扫描失败：'+err.message;}
+ }finally{
+  if(refreshButton){refreshButton.disabled=false;refreshButton.textContent='🔄 刷新本地模型、音色与能力';}
  }
 }
 
@@ -182,7 +222,7 @@ function createSpeechDialog(){
  <div class="xs-engine-pool" data-multi-engine-pool>
    <div class="xs-engine-pool-title">
      <span>🎙️ 多引擎协作池（手动选择参与分流的引擎）</span>
-     <button type="button" class="menu_button xs-mini-btn" data-detect-all-engines>🔄 重新检测引擎与音色</button>
+     <button type="button" class="menu_button xs-mini-btn" data-detect-all-engines>🔄 刷新本地模型、音色与能力</button>
    </div>
    <div class="xs-preset-bar">
      <span style="font-size:0.85em;align-self:center;opacity:0.85">快捷策略：</span>
@@ -198,7 +238,7 @@ function createSpeechDialog(){
          <b>1. 本地 Sherpa 引擎 (Kokoro-82M)</b>
          <span class="xs-engine-badge" style="background:#2e7d32">24kHz 离线</span>
        </span>
-       <small style="opacity:0.8">103 款音色，0 Token 消耗，适合旁白/正文/高频台词</small>
+         <small style="opacity:0.8">扫描设备已安装模型及音色；离线合成不消耗 Token</small>
      </label>
      <label class="xs-engine-item">
        <span style="display:flex;align-items:center;gap:6px">
@@ -233,7 +273,7 @@ function createSpeechDialog(){
        <small style="opacity:0.8">TTS-Server、外部离线语音服务</small>
      </label>
    </div>
-   <p data-engine-pool-status role="status" style="font-size:0.84em;margin:6px 0 0 0;opacity:0.9"></p>
+   <p data-engine-pool-status role="status" style="font-size:0.84em;margin:6px 0 0 0;opacity:0.9"></p><details data-local-model-report hidden><summary>本地模型能力与音色清单</summary><div data-local-model-report-content></div></details>
  </div>
 
  <p data-card-scope></p><div data-api-history><label>已保存的配音记录<select class="text_pole" data-session-list><option value="">暂无记录</option></select></label><button class="menu_button" type="button" data-session-restore>恢复所选记录</button></div><label>配音范围<select class="text_pole" data-scope><option value="selection">选中文字</option><option value="full">整条消息 / 整段文本</option></select></label>

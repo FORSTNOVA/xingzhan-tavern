@@ -175,7 +175,6 @@ export async function mount(container,kind,onSaved=()=>{}){
 
  try{
   const config=show(await(await mediaRequest('config/'+kind)).json());
-  if(kind==='analysis'&&config.hasKey)await refresh();
  }catch(error){status.textContent=error.message;}
 
  container.querySelector('[data-model-filter]')?.addEventListener('input',renderModels);

@@ -4,10 +4,19 @@ tasks.register('packSynthesis', Exec) {
     commandLine 'node', rootProject.file('scripts/pack-synthesis.mjs').absolutePath
     inputs.dir rootProject.file('plugins/xingzhan-synthesis')
     inputs.file rootProject.file('scripts/pack-synthesis.mjs')
-    outputs.files(['manifest.json','index.js','media.js','style.css','system.js'].collect { rootProject.file('app/src/main/assets/xingzhan-synthesis-' + it) })
+    outputs.files(['manifest.json','index.js','media.js','style.css','system.js','kokoro-blend.js'].collect { rootProject.file('app/src/main/assets/xingzhan-synthesis-' + it) })
     outputs.file rootProject.file('artifacts/xingzhan-synthesis.zip')
 }
-tasks.named('preBuild').configure { dependsOn 'packSynthesis' }
+tasks.register('packTavern', Exec) {
+    workingDir rootProject.projectDir
+    commandLine 'node', rootProject.file('scripts/pack-tavern.mjs').absolutePath
+    inputs.dir rootProject.file('vendor/SillyTavern')
+    inputs.file rootProject.file('scripts/pack-tavern.mjs')
+    outputs.files rootProject.file('app/src/main/assets/tavern.zip'),
+            rootProject.file('app/src/main/assets/android-characters.js'),
+            rootProject.file('app/src/main/assets/android-characters.version')
+}
+tasks.named('preBuild').configure { dependsOn 'packSynthesis', 'packTavern' }
 android {
     namespace 'cn.jiuguan.probe'
     compileSdk 36
