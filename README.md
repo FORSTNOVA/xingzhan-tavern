@@ -111,7 +111,7 @@ node scripts/smoke.mjs
 
 ## 来源与许可证
 
-- SillyTavern：https://github.com/SillyTavern/SillyTavern（AGPL-3.0，APK 内包含上游 LICENSE）。
+- SillyTavern：https://github.com/SillyTavern/SillyTavern   （AGPL-3.0，APK 内包含上游 LICENSE）。
 - Node 移动构建：https://github.com/fogtape/nodejs-mobile/tree/recipe 。
 - nodejs-mobile 官方：https://github.com/nodejs-mobile/nodejs-mobile 。
 
