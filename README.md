@@ -59,6 +59,7 @@
 - 可关闭的流畅模式：通知中切换，每批加载 30 条历史，普通旧消息延后绘制。
 - 完整跨引擎 TTS 分流与合成插件，支持安卓内置引擎、本地 Sherpa、星栈中转与官方 API 直连。
 - 本地 Kokoro 交互式音色融合：可选两种音色、设置混合比例并替换现有音色槽位；融合需导出模型文件并由用户放回 Sherpa 模型目录，插件不会直接改写系统引擎数据。详见 [星栈合成插件说明](plugins/xingzhan-synthesis/README.md#kokoro-交互式音色融合)。
+- 图像生成支持云端中转、外部 Local Dream API、本地 SD.cpp 与 Local Dream QNN/NPU 管线；配置入口、模型依赖、真机验证范围和限制见 [图像生成说明](IMAGE-GENERATION.md)。
 
 ## 文档入口与当前状态（2026-10-07）
 
@@ -69,7 +70,7 @@
 - [合成实现记录](SYNTHESIS-PLUGIN.md)：按日期保留实现和验收历史；文首“当前状态”优先于后续历史条目。
 - [合成路线图](SYNTHESIS-ROADMAP.md)：汇总已经落地的阶段和仍待验证/实现的事项，不再把旧版首期计划当作当前状态。
 - [分类质量评估](TTS-EVALUATION-REPORT.md) 与 [2026-10-04 五项验收快照](TTS-ACCEPTANCE-20261004.md)：保存当时的样本、调用数和限制；它们不是 2026-10-07 的新测试。
-- 本地 SD 开发生图的交接与脚本分别见 [本地 SD 交接记录](LOCAL-SD-HANDOFF.md) 和 [脚本索引](scripts/local-sd/README.md)；模型、编译缓存及第三方源码保留为本机资产。
+- 图像生成的当前用户说明见 [图像生成说明](IMAGE-GENERATION.md)；本地 NPU 验证见 [Local NPU 记录](LOCAL-NPU-BRIDGE.md)，SD 开发生图脚本索引见 [本地 SD 脚本索引](scripts/local-sd/README.md)。模型、编译缓存及第三方源码保留为本机资产。
 
 源码仓库只保存可维护的源码、脚本和文档。构建 APK、模型权重、运行时下载和本机 Android Studio 配置均不进入 Git；需要分发时请使用 GitHub Releases。仓库结构和提交约定见 [Git 工作流文档](GIT-WORKFLOW.md)。
 
