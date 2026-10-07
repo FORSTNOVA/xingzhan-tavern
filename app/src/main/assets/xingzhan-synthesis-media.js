@@ -76,14 +76,121 @@ export function form(kind){
 </div>`;
  }
 
+ if(kind==='image'){
+  return `<div class="xingzhan-media-settings" data-kind="image">
+ <p>生图设置支持 Gemini 中转、酒馆内置 SD.cpp，以及集成 Local Dream 核心的骁龙 NPU 模型。</p>
+ <label>接入来源</label>
+ <select data-field="source" class="text_pole">
+  <option value="relay">中转服务（Google Gemini / 云端生图）</option>
+  <option value="local">本地引擎（SD.cpp / 伴侣服务 / SD WebUI）</option>
+  <option value="npu">本机 NPU（由酒馆管理）</option>
+  <option value="localdream">外部 Local Dream API（需单独打开应用）</option>
+ </select>
+
+ <div data-group="image-relay">
+  <label>中转基础地址</label><input data-field="base" class="text_pole" placeholder="https://你的中转域名">
+  <label>渠道记录（实际路由由中转决定）</label><select data-field="channel" class="text_pole"><option>AI Studio</option><option>Vertex AI</option></select>
+  <label>对外模型名称</label><input data-field="model" class="text_pole" placeholder="gemini-3.1-flash-lite-image">
+  <label>中转令牌</label><input data-field="key" class="text_pole" type="password" autocomplete="new-password" placeholder="输入新令牌，留空保留">
+  <label>清晰度</label><select data-field="resolution" class="text_pole"><option>1K</option><option>2K</option><option>4K</option></select>
+ </div>
+
+ <div data-group="image-local">
+  <div style="margin:4px 0 10px 0;padding:8px 10px;background:rgba(255,255,255,0.06);border-radius:6px;border:1px solid rgba(255,255,255,0.12);">
+   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+    <label style="font-weight:bold;margin:0;">生图模型 (离线 SD / GGUF / SafeTensors)</label>
+    <button type="button" data-local-model-refresh class="menu_button xs-mini-btn" style="margin:0;padding:2px 8px;font-size:0.82em;">🔄 刷新模型</button>
+   </div>
+   <select data-field="selectedModel" class="text_pole" style="font-size:0.95em;padding:6px 8px;margin:0;">
+    <option value="">正在检测本地模型...</option>
+   </select>
+   <small style="opacity:0.75;display:block;margin-top:4px;">已支持扫描 tools/local-sd 与手机 Download 目录中的 .safetensors / .gguf 模型</small>
+  </div>
+  <label>本地推理后端</label><select data-field="localBackend" class="text_pole"><option value="cpu">CPU（稳定模式）</option><option value="opencl">GPU（Adreno OpenCL，实验性）</option></select>
+  <small style="opacity:0.75;display:block;margin-top:-4px;">GPU 使用手机的 Adreno OpenCL 驱动，仍处于实机验证阶段；若生成失败，请切回 CPU。切换后点“保存配置”生效。</small>
+  <label>本地引擎服务地址 (sd.cpp / WebUI 伴侣)</label><input data-field="localUrl" class="text_pole" placeholder="http://127.0.0.1:8789">
+  <label>采样步数 (标准 SD 推荐 15~20 步，LCM/Turbo 模型推荐 4~8 步)</label><input data-field="steps" class="text_pole" type="number" min="4" max="50" placeholder="15">
+  <label>CFG 引导系数 (标准 SD 推荐 7.0，LCM 微调推荐 1.8)</label><input data-field="cfgScale" class="text_pole" type="number" step="0.1" min="1" max="15" placeholder="7.0">
+  <label>通用负面提示词 (Negative Prompt)</label><textarea data-field="negativePrompt" class="text_pole" rows="2" placeholder="bad anatomy, bad hands, lowres, text, watermark, deformed, blurry"></textarea>
+  <div class="local-engine-panel" style="margin:8px 0;padding:10px;background:rgba(0,0,0,0.25);border-radius:8px;border:1px solid rgba(255,255,255,0.12);">
+   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+    <span style="font-weight:bold;font-size:0.95em;">本地 SD 引擎伴侣管理</span>
+    <span data-local-engine-badge style="font-size:0.82em;padding:2px 8px;border-radius:10px;background:#555;color:#fff;">⚪ 检测中...</span>
+   </div>
+   <div class="flex-container" style="gap:6px;margin-bottom:8px;">
+    <button type="button" data-local-engine-btn="start" class="menu_button" style="flex:1;">▶ 启动本地引擎</button>
+    <button type="button" data-local-engine-btn="stop" class="menu_button" style="flex:1;">⏹ 停止本地引擎</button>
+    <button type="button" data-local-engine-btn="refresh" class="menu_button">🔄 刷新</button>
+   </div>
+   <div data-local-engine-info style="font-size:0.82em;line-height:1.5;margin-bottom:6px;opacity:0.9;"></div>
+   <details data-local-engine-details style="margin-top:6px;font-size:0.82em;">
+    <summary style="cursor:pointer;opacity:0.8;">查看引擎运行日志</summary>
+    <pre data-local-engine-logs style="max-height:120px;overflow-y:auto;background:#111;color:#a5d6a7;padding:6px;border-radius:4px;margin-top:4px;white-space:pre-wrap;font-family:monospace;font-size:11px;">暂无日志</pre>
+   </details>
+  </div>
+  <p style="font-size:0.85em;opacity:0.8;margin:4px 0;">说明：本地引擎运行在手机本地，无审核拦截、无需联网令牌。推荐搭配 <b>GhostMix-LCM</b> 或 <b>DreamShaper-8-LCM</b> GGUF 量化模型。</p><p style="font-size:0.85em;color:#ff9800;margin:4px 0;">⚠️ 提示：点击上方「▶ 启动本地引擎」可直接唤起本地后台伴侣；若未放置本地模型，请在上方切回「中转服务（云端生图）」即可直接出图。</p>
+ </div>
+
+ <div data-group="image-npu" class="xs-npu-panel" hidden>
+  <div class="xs-npu-heading"><strong>本机 NPU 生图</strong><span data-npu-badge data-state="checking">检测中</span></div>
+  <p class="xs-npu-hint">导入兼容的 QNN SD 1.5 模型 ZIP，选择模型后启动。生成时使用手机 NPU；停止可释放模型占用的内存。</p>
+  <details class="xs-npu-card" data-npu-import-details>
+   <summary>① 导入模型 ZIP</summary>
+   <div class="xs-npu-card-body">
+    <div class="xs-npu-file-row"><button type="button" data-npu-file-trigger class="menu_button">选择 ZIP 文件</button><span data-npu-file-name>尚未选择文件</span></div>
+    <input data-npu-file type="file" accept=".zip,application/zip,application/x-zip-compressed" style="display:none;">
+    <button type="button" data-npu-import class="menu_button">导入所选模型</button>
+    <div data-npu-progress-wrap class="xs-npu-progress" hidden><progress data-npu-progress max="100" value="0"></progress><small data-npu-progress-text>准备导入…</small></div>
+    <small>模型保存在本应用目录。导入大文件时请保持酒馆在前台。</small>
+   </div>
+  </details>
+  <div class="xs-npu-card">
+   <strong>② 选择并启动</strong>
+   <label>已导入的模型</label><select data-npu-model class="text_pole" aria-label="已导入的 NPU 模型"><option value="">正在读取模型…</option></select>
+   <div class="xs-npu-actions">
+    <button type="button" data-npu-action="start" class="menu_button">▶ 启动所选模型</button>
+    <button type="button" data-npu-action="stop" class="menu_button">⏹ 停止并释放</button>
+    <button type="button" data-npu-action="refresh" class="menu_button">刷新状态</button>
+   </div>
+   <div data-npu-status class="xs-npu-status" role="status">正在检查运行环境…</div>
+   <p data-npu-notice class="xs-npu-notice" role="status" hidden></p>
+   <details><summary>查看 NPU 运行日志</summary><pre data-npu-logs>暂无运行日志</pre></details>
+  </div>
+  <details class="xs-npu-card" data-npu-params-details>
+   <summary>③ 生成参数</summary>
+   <div class="xs-npu-card-body">
+    <label>采样步数</label><input data-field="steps" class="text_pole" type="number" min="1" max="60" placeholder="20">
+   <label>CFG 引导系数</label><input data-field="cfgScale" class="text_pole" type="number" step="0.1" min="0.5" max="20" placeholder="7.5">
+   <label>负面提示词</label><textarea data-field="negativePrompt" class="text_pole" rows="2"></textarea>
+    <button type="button" data-npu-standard-preset class="menu_button">应用普通 SD 1.5 画质预设：20 步 / CFG 7</button>
+    <small>4–8 步、低 CFG 仅适合明确标注 Turbo/LCM 的模型。普通 AnythingV5 建议从 20 步 / CFG 7 开始；非方形输出会自动加载模型包内的分辨率补丁。</small>
+   </div>
+  </details>
+ </div>
+
+ <div data-group="image-localdream" hidden>
+  <p>通过 Local Dream 的本机 HTTP API 调用已加载的 QNN/HTP 模型。请先打开 Local Dream 并加载 NPU 模型。部分系统会隔离不同应用间的 127.0.0.1 访问；若诊断超时，即使 ADB 转发可访问，也需要系统允许酒馆访问该端口或使用本机代理。</p>
+  <label>Local Dream API 地址</label><input data-field="localDreamUrl" class="text_pole" placeholder="http://127.0.0.1:8081">
+  <small style="opacity:0.75;display:block;margin:4px 0 10px;">此路线不使用酒馆内的 SD.cpp 模型与 CPU/GPU 开关。SD 1.5 提示词上限为 77 tokens；当前按模型支持的方形或横竖版尺寸提交。</small>
+ </div>
+
+ <div class="flex-container" style="margin-top:12px;">
+  <button type="button" data-action="save" class="menu_button">保存配置</button>
+  <button type="button" data-action="delete" class="menu_button">删除令牌</button>
+  <button type="button" data-action="check" class="menu_button">检查连接与引擎状态</button>
+ </div>
+ <p data-status role="status" style="margin-top:8px;font-weight:bold;"></p>
+</div>`;
+ }
+
  return `<div class="xingzhan-media-settings" data-kind="${kind}">
  <p>通过 New API 转接。修改后点击保存；令牌留空表示保留。</p>
  <label>中转基础地址</label><input data-field="base" class="text_pole" placeholder="https://你的中转域名">
- <label>渠道记录（实际路由由中转决定）</label><select data-field="channel" class="text_pole"><option>AI Studio</option>${kind==='image'?'<option>Vertex AI</option>':''}</select>
+ <label>渠道记录（实际路由由中转决定）</label><select data-field="channel" class="text_pole"><option>AI Studio</option></select>
  <label>对外模型名称</label>
  <input data-field="model" class="text_pole">
  <label>中转令牌</label><input data-field="key" class="text_pole" type="password" autocomplete="new-password" placeholder="输入新令牌，留空保留">
- ${kind==='tts'?'<label>默认音色 ID</label><input data-field="voice" class="text_pole"><label>朗读风格（可选）</label><textarea data-field="style" class="text_pole" placeholder="自然、温柔地朗读"></textarea>':kind==='image'?'<label>清晰度</label><select data-field="resolution" class="text_pole"><option>1K</option><option>2K</option><option>4K</option></select>':''}
+ <label>默认音色 ID</label><input data-field="voice" class="text_pole"><label>朗读风格（可选）</label><textarea data-field="style" class="text_pole" placeholder="自然、温柔地朗读"></textarea>
  <div class="flex-container"><button type="button" data-action="save" class="menu_button">保存配置</button><button type="button" data-action="delete" class="menu_button">删除令牌</button><button type="button" data-action="check" class="menu_button">检查连接与模型</button></div><p data-status role="status"></p></div>`;
 }
 
@@ -96,6 +203,15 @@ export async function mount(container,kind,onSaved=()=>{}){
  let lastConfig={};
 
  const updateVisibility=()=>{
+  if(kind==='image'){
+   const src=sourceSelect?.value||'relay';
+   container.querySelector('[data-group="image-relay"]')?.toggleAttribute('hidden',src!=='relay');
+   container.querySelector('[data-group="image-local"]')?.toggleAttribute('hidden',src!=='local');
+   container.querySelector('[data-group="image-localdream"]')?.toggleAttribute('hidden',src!=='localdream');
+   container.querySelector('[data-group="image-npu"]')?.toggleAttribute('hidden',src!=='npu');
+   container.querySelector('[data-action="delete"]')?.toggleAttribute('hidden',src!=='relay');
+   return;
+  }
   if(kind!=='analysis')return;
   const src=sourceSelect?.value||'relay';
   const isVertex=src==='vertexai';
@@ -156,6 +272,7 @@ export async function mount(container,kind,onSaved=()=>{}){
    if(input.dataset.field==='key'||input.dataset.field==='serviceAccountJson')continue;
    if(input.type==='checkbox')input.checked=config[input.dataset.field]!==false;
    else if(kind==='analysis'&&input===model){chosen=config.model;renderModels();}
+   else if(input.tagName==='SELECT')input.value=config[input.dataset.field]||(input.options[0]?.value||'');
    else input.value=config[input.dataset.field]||'';
   }
   updateVisibility();
@@ -164,6 +281,8 @@ export async function mount(container,kind,onSaved=()=>{}){
    if(config.source==='makersuite')keyStatus=config.hasGlobalKey&&config.useGlobalKey?'已复用酒馆全局 AI Studio Key':config.hasCustomKey?'已配置专属 AI Studio Key':config.hasKey?'已就绪':'尚未配置 API Key';
    else if(config.source==='vertexai')keyStatus=config.hasGlobalKey&&config.useGlobalKey?'已复用酒馆全局 Vertex 凭据':config.hasCustomKey?'已配置专属 Vertex 凭据':config.hasKey?'已就绪':'尚未配置凭据';
    else keyStatus=config.hasKey?'已配置中转令牌':'尚未配置令牌';
+  }else if(kind==='image'){
+   keyStatus=config.source==='npu'?'已选择本机 NPU 模型：'+(config.selectedModel||'尚未选择'):config.source==='localdream'?'已选择 Local Dream 外部 API':config.source==='local'?'已启用本地 SD 引擎 (sd.cpp)':config.hasKey?'已配置中转令牌':'尚未配置令牌';
   }else{
    keyStatus=config.hasKey?'已配置令牌':'尚未配置令牌';
   }
@@ -184,7 +303,193 @@ export async function mount(container,kind,onSaved=()=>{}){
 
  if(kind==='analysis')model.addEventListener('change',()=>chosen=model.value);
 
- for(const button of container.querySelectorAll('[data-action]'))button.addEventListener('click',async()=>{
+ const updateLocalEngineStatus=async()=>{
+   if(kind!=='image')return;
+   const badge=container.querySelector('[data-local-engine-badge]');
+   const info=container.querySelector('[data-local-engine-info]');
+   const logs=container.querySelector('[data-local-engine-logs]');
+   if(!badge)return;
+   try{
+    const res=await(await mediaRequest('local-engine/status')).json();
+    if(res.running){
+     badge.textContent='🟢 运行中 ('+res.port+')';
+     badge.style.background='#2e7d32';
+    }else{
+     badge.textContent='⚪ 未运行';
+     badge.style.background='#555';
+    }
+    // Update dedicated model selector
+    const modelSelect = container.querySelector('[data-field="selectedModel"]');
+    if (modelSelect && Array.isArray(res.allModels)) {
+     modelSelect.replaceChildren();
+     if (res.allModels.length === 0) {
+      modelSelect.add(new Option('未检测到本地模型 (请放入 tools/local-sd)', ''));
+     } else {
+      for (const m of res.allModels) {
+       const opt = new Option(m.name + ' (' + m.sizeMb + ' MB · ' + m.dir + ')', m.name);
+       if (m.name === (res.selectedModel || res.modelName)) opt.selected = true;
+       modelSelect.add(opt);
+      }
+     }
+     if (!modelSelect.dataset.bound) {
+      modelSelect.dataset.bound = 'true';
+      modelSelect.addEventListener('change', async () => {
+       const chosen = modelSelect.value;
+       try {
+        lastConfig.selectedModel = chosen;
+        await mediaRequest('local-engine/model', { model: chosen });
+        status.textContent = '已切换生效模型: ' + chosen;
+        status.style.color = '#4caf50';
+        await updateLocalEngineStatus();
+       } catch (e) {
+        status.textContent = '切换失败: ' + e.message;
+        status.style.color = '#f44336';
+       }
+      });
+     }
+    }
+    const refreshBtn = container.querySelector('[data-local-model-refresh]');
+    if (refreshBtn && !refreshBtn.dataset.bound) {
+     refreshBtn.dataset.bound = 'true';
+     refreshBtn.addEventListener('click', async (e) => {
+      e.preventDefault();
+      await updateLocalEngineStatus();
+     });
+    }
+
+    if(info){
+     const parts=[];
+     parts.push('<b>工作目录:</b> '+res.sdDir);
+     if(Array.isArray(res.allModels)&&res.allModels.length>0){
+      parts.push('<span style="color:#81c784;">✓ 检测到 '+res.allModels.length+' 个本地模型，当前激活：<b>'+(res.selectedModel||res.modelName)+'</b></span>');
+     }else{
+      parts.push('<span style="color:#ffb74d;">✗ 未检测到模型 (请将 .gguf / .safetensors 放入 tools/local-sd 或手机 Download 目录)</span>');
+     }
+     parts.push(res.binFound?'<span style="color:#81c784;">✓ 推理程序已就绪 ('+res.binName+')</span>':'<span style="color:#ffb74d;">✗ 未检测到 sd 程序 (请将 sd 放入 tools/local-sd)</span>');
+     info.innerHTML=parts.join('<br>');
+    }
+    if(logs&&Array.isArray(res.logs)){
+     logs.textContent=res.logs.join('\n')||'暂无引擎日志';
+    }
+   }catch(e){
+    badge.textContent='检查失败';
+    badge.style.background='#c62828';
+   }
+  };
+
+  let npuBusy=false,npuLastStatus=null;
+  const npuSelect=container.querySelector('[data-npu-model]');
+  const npuFileInput=container.querySelector('[data-npu-file]');
+  const npuProgressWrap=container.querySelector('[data-npu-progress-wrap]');
+  const npuProgress=container.querySelector('[data-npu-progress]');
+  const npuProgressText=container.querySelector('[data-npu-progress-text]');
+  const npuNotice=container.querySelector('[data-npu-notice]');
+  const setNpuNotice=(message,tone='info')=>{if(!npuNotice)return;npuNotice.textContent=message;npuNotice.dataset.tone=tone;npuNotice.hidden=!message;};
+  const renderNpuControls=()=>{
+   const running=!!npuLastStatus?.running;
+   if(npuSelect)npuSelect.disabled=npuBusy||running||!npuLastStatus?.models?.length;
+   container.querySelector('[data-npu-file-trigger]').disabled=npuBusy||running;
+   container.querySelector('[data-npu-import]').disabled=npuBusy||running;
+   container.querySelector('[data-npu-action="start"]').disabled=npuBusy||running||!npuLastStatus?.supported||!npuSelect?.value;
+   container.querySelector('[data-npu-action="stop"]').disabled=npuBusy||!running;
+   container.querySelector('[data-npu-action="refresh"]').disabled=npuBusy;
+  };
+  const setNpuBusy=busy=>{npuBusy=busy;container.querySelector('[data-group="image-npu"]')?.setAttribute('aria-busy',String(busy));renderNpuControls();};
+  const updateNpuStatus=async()=>{
+   if(kind!=='image')return;
+   const info=container.querySelector('[data-npu-status]'),badge=container.querySelector('[data-npu-badge]'),logs=container.querySelector('[data-npu-logs]');
+   try{
+    const res=await(await mediaRequest('npu/status')).json();npuLastStatus=res;
+    const importDetails=container.querySelector('[data-npu-import-details]');
+    if(importDetails&&!importDetails.dataset.initialized){importDetails.open=!res.models?.length;importDetails.dataset.initialized='true';}
+    const names=new Set((res.models||[]).map(item=>item.name));
+    const selected=[res.running?res.modelName:'',res.selectedModel,npuSelect.value,lastConfig.selectedModel].find(name=>names.has(name))||res.models?.[0]?.name||'';
+    npuSelect.replaceChildren();if(!res.models?.length)npuSelect.add(new Option('尚未导入 QNN 模型',''));
+    for(const item of res.models||[])npuSelect.add(new Option(item.name+' · '+Math.round(item.bytes/1048576)+' MB',item.name));
+    npuSelect.value=selected;
+    const state=res.ready?'ready':res.running?'starting':res.supported?'stopped':'unavailable';
+    badge.dataset.state=state;badge.textContent={ready:'运行中',starting:'启动中',stopped:'已停止',unavailable:'不可用'}[state];
+    info.textContent=(res.ready?'正在运行：'+res.modelName+' · '+(res.resolution||'512x512')+'。非方形生图会自动加载对应补丁。':res.running?'正在加载 '+res.modelName+'，请稍候。':res.supported?'已导入 '+(res.models?.length||0)+' 个模型；选择并启动后即可生成。':res.socModel?'设备 '+res.socModel+' 的 NPU 运行环境尚未就绪。':'尚未检测到兼容的 NPU 运行环境。')+(res.runtimeReady?'':' QNN 运行库不可用。');
+    if(logs)logs.textContent=(res.logs||[]).join('\n')||'暂无运行日志';
+   }catch(error){npuLastStatus=null;badge.dataset.state='unavailable';badge.textContent='检查失败';info.textContent='读取 NPU 状态失败：'+error.message;}
+   renderNpuControls();
+  };
+
+  const uploadNpuArchive=file=>new Promise((resolve,reject)=>{
+   const xhr=new XMLHttpRequest();xhr.open('PUT','/api/android/media/npu/models/import');xhr.setRequestHeader('Content-Type','application/zip');xhr.setRequestHeader('X-Model-Name',encodeURIComponent(file.name));
+   const headers=getRequestHeaders({omitContentType:true});for(const [name,value] of Object.entries(headers||{}))xhr.setRequestHeader(name,value);
+   xhr.timeout=30*60*1000;xhr.upload.onprogress=event=>{if(event.lengthComputable){const percent=Math.round(event.loaded/event.total*100);npuProgress.value=percent;npuProgressText.textContent='上传模型 '+percent+'%';}};
+   xhr.upload.onload=()=>{npuProgress.removeAttribute('value');npuProgressText.textContent='上传完成，正在解压并校验模型…';};
+   xhr.onerror=()=>reject(Error('模型上传连接失败'));xhr.ontimeout=()=>reject(Error('模型上传超时'));xhr.onload=()=>{let result={};try{result=JSON.parse(xhr.responseText);}catch{}if(xhr.status>=200&&xhr.status<300)resolve(result);else reject(Error(result.error||('HTTP '+xhr.status)));};xhr.send(file);
+  });
+
+  npuSelect?.addEventListener('change',async event=>{
+   const chosen=event.currentTarget.value;if(!chosen)return;
+   setNpuBusy(true);setNpuNotice('正在切换到 '+chosen+'…');
+   try{await mediaRequest('npu/select',{model:chosen});lastConfig={...lastConfig,source:'npu',selectedModel:chosen};sourceSelect.value='npu';updateVisibility();await updateNpuStatus();onSaved(lastConfig);setNpuNotice('已选择 '+chosen+'；点击“启动所选模型”开始加载。','success');}
+   catch(error){setNpuNotice('切换模型失败：'+error.message,'error');await updateNpuStatus();}
+   finally{setNpuBusy(false);}
+  });
+  container.querySelector('[data-npu-file-trigger]')?.addEventListener('click',()=>npuFileInput?.click());
+  npuFileInput?.addEventListener('change',()=>{container.querySelector('[data-npu-file-name]').textContent=npuFileInput.files?.[0]?.name||'尚未选择文件';setNpuNotice('');});
+  container.querySelector('[data-npu-import]')?.addEventListener('click',async()=>{
+   const file=npuFileInput?.files?.[0];if(!file){setNpuNotice('请先选择模型 ZIP 文件。','error');return;}
+   if(file.size>1500000000){setNpuNotice('模型 ZIP 超过 1.5GB 上限。','error');return;}
+   setNpuBusy(true);npuProgressWrap.hidden=false;npuProgress.value=0;npuProgressText.textContent='准备上传 '+file.name;setNpuNotice('导入过程中请保持酒馆在前台。');
+   try{const imported=await uploadNpuArchive(file);await mediaRequest('npu/select',{model:imported.model.name});lastConfig={...lastConfig,source:'npu',selectedModel:imported.model.name};sourceSelect.value='npu';updateVisibility();await updateNpuStatus();onSaved(lastConfig);npuProgress.value=100;npuProgressText.textContent='导入完成';setNpuNotice('模型已导入：'+imported.model.name+'（'+Math.round(imported.model.bytes/1048576)+' MB）。','success');}
+   catch(error){npuProgressWrap.hidden=true;setNpuNotice('导入失败：'+error.message,'error');}
+   finally{setNpuBusy(false);}
+  });
+  container.querySelectorAll('[data-npu-action]').forEach(button=>button.addEventListener('click',async()=>{
+   const action=button.dataset.npuAction;if(action==='refresh'){await updateNpuStatus();setNpuNotice('运行状态已刷新。','success');return;}
+   const chosen=npuSelect?.value;setNpuBusy(true);setNpuNotice(action==='start'?'正在加载 '+chosen+'，首次启动可能需要一两分钟…':'正在停止 NPU 并释放内存…');
+   try{
+    if(action==='start'){
+     if(!chosen)throw Error('请先导入并选择模型');
+     await mediaRequest('npu/select',{model:chosen});lastConfig={...lastConfig,source:'npu',selectedModel:chosen};sourceSelect.value='npu';updateVisibility();onSaved(lastConfig);
+    }
+    await mediaRequest('npu/'+action,action==='start'?{model:chosen}:{});
+    await updateNpuStatus();setNpuNotice(action==='start'?'NPU 已就绪，可以生成图片。':'NPU 已停止，模型内存已释放。','success');
+   }catch(error){setNpuNotice('NPU 操作失败：'+error.message,'error');await updateNpuStatus();}
+   finally{setNpuBusy(false);}
+  }));
+  if(kind==='image')renderNpuControls();
+  container.querySelector('[data-npu-standard-preset]')?.addEventListener('click',()=>{
+   container.querySelector('[data-group="image-npu"] [data-field="steps"]').value='20';
+   container.querySelector('[data-group="image-npu"] [data-field="cfgScale"]').value='7';
+   container.querySelector('[data-action="save"]').click();
+  });
+
+  sourceSelect?.addEventListener('change',()=>{if(sourceSelect.value==='local')void updateLocalEngineStatus();});
+  sourceSelect?.addEventListener('change',()=>{if(sourceSelect.value==='npu')void updateNpuStatus();});
+
+  container.querySelectorAll('[data-local-engine-btn]').forEach(btn=>{
+   btn.addEventListener('click',async()=>{
+    const act=btn.dataset.localEngineBtn;
+    btn.disabled=true;
+    try{
+     if(act==='start'){
+      await mediaRequest('local-engine/start',{});
+      status.textContent='已启动本地 SD 伴侣服务';
+      status.style.color='#4caf50';
+     }else if(act==='stop'){
+      await mediaRequest('local-engine/stop',{});
+      status.textContent='已停止本地 SD 伴侣服务';
+      status.style.color='#ff9800';
+     }
+     await updateLocalEngineStatus();
+    }catch(err){
+     status.textContent='操作失败: '+err.message;
+     status.style.color='#f44336';
+    }finally{
+     btn.disabled=false;
+    }
+   });
+  });
+  if(kind==='image'&&(sourceSelect?.value||'relay')==='local')updateLocalEngineStatus();
+  if(kind==='image'&&(sourceSelect?.value||'relay')==='npu')updateNpuStatus();
+
+  for(const button of container.querySelectorAll('[data-action]'))button.addEventListener('click',async()=>{
   button.disabled=true;
   try{
    if(button.dataset.action==='models'){await refresh();return;}
@@ -205,6 +510,7 @@ export async function mount(container,kind,onSaved=()=>{}){
     else if(input.value)body[input.dataset.field]=input.value;
     else if(input.dataset.field!=='key'&&input.dataset.field!=='serviceAccountJson')body[input.dataset.field]='';
    }
+   if(kind==='image'&&body.source==='npu')body.selectedModel=npuSelect?.value||lastConfig.selectedModel||'';
    if(button.dataset.action==='delete'){
     body.removeKey=true;
    }
@@ -235,6 +541,9 @@ export class XingzhanTtsProvider{
  dispose(){this.cancel();if(this.audioElement.src.startsWith('blob:'))URL.revokeObjectURL(this.audioElement.src);}
 }
 export async function relayImage(prompt,ratio,signal,extra={}){return(await mediaRequest('generate-image',{prompt,aspect_ratio:ratio,...extra},signal)).json();}
+export async function tokenizeNpuImagePrompt(prompt){return(await mediaRequest('npu/tokenize',{prompt})).json();}
+export async function getImageQueueStatus(){return(await mediaRequest('image-queue/status')).json();}
+export async function cancelImageTask(taskId='all'){return(await mediaRequest('image-queue/cancel',{id:taskId})).json();}
 export async function generateImagePrompt(text,context=[],signal,extra={}){return(await mediaRequest('image-prompt',{text,context,...extra},signal)).json();}
 export async function loadImageHistory(scope=currentSpeechScope()){return(await mediaRequest('image-history?scope='+encodeURIComponent(scope.id||scope))).json();}
 export async function deleteImageHistory(id,scope=currentSpeechScope()){return(await mediaRequest('image-history/delete',{id,scopeId:scope.id||scope})).json();}
@@ -249,6 +558,7 @@ export function messageSpeechData(message,selectedText){
  return {text:selectedText??fullText,fullText,context,scope:selectedText===undefined?'full':'selection',label:message?.getAttribute('ch_name')||'消息',cardScope:currentSpeechScope()};
 }
 export function currentSpeechScope(){const ctx=getContext();if(ctx.groupId)return {id:'group:'+ctx.groupId,label:ctx.groups?.find(x=>String(x.id)===String(ctx.groupId))?.name||'群聊'};const card=ctx.characters?.[ctx.characterId];return card?.avatar?{id:'card:'+card.avatar,label:card.name||card.avatar}:{id:'manual',label:'临时文本'};}
+export function currentCardImageSource(){const ctx=getContext(),card=ctx.characters?.[ctx.characterId];if(!card)return null;const text=(card.first_mes||card.description||card.personality||card.scenario||card.name||'').trim();if(!text)return null;return {text,fullText:text,context:[{name:card.name||'角色',text:(card.description||'').slice(0,500)}],label:(card.name||'角色卡')+(card.first_mes?' 开场白':' 设定'),cardScope:currentSpeechScope()};}
 export function initSelectionTts(isEnabled=()=>true,onSelect=()=>{}){
  if(document.querySelector('#xingzhan-selection-tts'))return;
  const action=document.createElement('button');action.id='xingzhan-selection-tts';action.className='menu_button';action.textContent='选区配音';action.type='button';action.hidden=true;action.popover='manual';document.body.append(action);let timer,data;

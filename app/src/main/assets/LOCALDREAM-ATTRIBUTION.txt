@@ -1,0 +1,16 @@
+Local Dream native helper attribution
+
+Project: Local Dream, https://github.com/xororz/local-dream
+Version: 2.8.1 (source commit a7666f6198412a58c6eb1eacc28828aa40c7d7ae)
+License: Creative Commons Attribution-NonCommercial 4.0 International (CC BY-NC 4.0)
+License text: localdream-LICENSE.txt
+
+The optional arm64 native helper included in local builds is copied without
+binary modification from the locally supplied Local Dream 2.8.1 APK. This
+project adds Android packaging, QNN runtime staging, and an opt-in device
+smoke-test launcher around that helper. Model weights and Qualcomm QNN runtime
+libraries are not bundled in this APK; runtime libraries are staged on-device
+from an already installed Local Dream package.
+
+The Local Dream license is non-commercial. Model and Qualcomm runtime terms are
+separate and remain the responsibility of their respective licensors.

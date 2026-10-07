@@ -1,0 +1,24 @@
+import fs from 'node:fs';
+import path from 'node:path';
+import {readLocalDreamSse,encodeLocalDreamRgbPng} from '../../../app/src/main/assets/localdream-codec.mjs';
+
+const [label,widthText='512',heightText='512',stepsText='20',cfgText='7']=process.argv.slice(2);
+if (!label || !/^[a-z0-9-]+$/.test(label)) throw Error('Usage: node npu-quality-direct.mjs <label> [width height steps cfg]');
+const width=Number(widthText),height=Number(heightText),steps=Number(stepsText),cfg=Number(cfgText);
+const base='http://127.0.0.1:28081';
+const prompt='anime portrait, a calm girl with silver hair wearing a blue kimono, moonlit garden, detailed eyes, high quality';
+const negative_prompt='low quality, blurry, malformed hands, text, watermark';
+const count=await fetch(base+'/tokenize',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({prompt})}).then(r=>r.json());
+const params={prompt,negative_prompt,width,height,steps,cfg,seed:20261007,scheduler:'dpm',output_format:'raw',preview_format:'raw'};
+const response=await fetch(base+'/generate',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(params),signal:AbortSignal.timeout(180_000)});
+if(!response.ok)throw Error('generate HTTP '+response.status+': '+(await response.text()).slice(0,300));
+const result=await readLocalDreamSse(response);
+if(result.format!=='raw')throw Error('unexpected format '+result.format);
+const raw=Buffer.from(result.image,'base64');
+const png=encodeLocalDreamRgbPng(result.image,result.width,result.height,result.channels);
+const dir=path.resolve('artifacts/local-npu-quality');fs.mkdirSync(dir,{recursive:true});
+fs.writeFileSync(path.join(dir,label+'.rgb'),raw);
+fs.writeFileSync(path.join(dir,label+'.png'),png);
+const meta={label,params,tokenCount:count,result:{seed:result.seed,width:result.width,height:result.height,channels:result.channels,format:result.format,generationTimeMs:result.generation_time_ms,rawBytes:raw.length,pngBytes:png.length}};
+fs.writeFileSync(path.join(dir,label+'.json'),JSON.stringify(meta,null,2));
+console.log(JSON.stringify({label,tokenCount:count.count,maxLength:count.max_length,...meta.result}));

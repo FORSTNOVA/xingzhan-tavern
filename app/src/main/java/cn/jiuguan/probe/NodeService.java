@@ -12,6 +12,7 @@ import java.util.zip.*;
 public class NodeService extends Service {
     private static final AtomicBoolean started = new AtomicBoolean();
     private PowerManager.WakeLock probeWakeLock;
+    private Process npuEngineProbe;
     private static native int startNode(String script, String workingDir);
     @Override public void onCreate() {
         super.onCreate();
@@ -43,6 +44,7 @@ public class NodeService extends Service {
             try {
                 long startupStartedAt = android.os.SystemClock.elapsedRealtime();
                 File root = new File(getFilesDir(), "tavern");
+                cleanupManagedNpuHelper(root, "startup-recovery");
                 File marker = new File(root, ".ready-v1");
                 if (!marker.exists()) {
                     long unpackStartedAt = android.os.SystemClock.elapsedRealtime();
@@ -65,7 +67,7 @@ public class NodeService extends Service {
                 }
                 long overlayStartedAt = android.os.SystemClock.elapsedRealtime();
                 File boot = new File(root, "android-bootstrap.mjs");
-                for(String name:new String[]{"android-bootstrap.mjs","android-updates.mjs","android-management.mjs","android-management.html","android-patches.mjs","android-git.mjs","android-routes.mjs","android-downloads.js","android-probe.html","android-media.mjs","android-media-patches.mjs","android-characters.js","android-characters.version","xingzhan-synthesis-manifest.json","xingzhan-synthesis-index.js","xingzhan-synthesis-media.js","xingzhan-synthesis-style.css","xingzhan-synthesis-system.js","xingzhan-synthesis-kokoro-blend.js"}) {
+                for(String name:new String[]{"android-bootstrap.mjs","android-updates.mjs","android-management.mjs","android-management.html","android-patches.mjs","android-git.mjs","android-routes.mjs","android-downloads.js","android-probe.html","android-media.mjs","localdream-codec.mjs","android-media-patches.mjs","android-characters.js","android-characters.version","xingzhan-synthesis-manifest.json","xingzhan-synthesis-index.js","xingzhan-synthesis-media.js","xingzhan-synthesis-style.css","xingzhan-synthesis-system.js","xingzhan-synthesis-kokoro-blend.js"}) {
                     try (InputStream in = getAssets().open(name); OutputStream out = new FileOutputStream(new File(root,name))) { byte[] buffer = new byte[32768]; int n; while ((n=in.read(buffer))>0) out.write(buffer,0,n); }
                 }
                 Log.i("TavernStartup", "android-assets-copy elapsedMs=" + (android.os.SystemClock.elapsedRealtime()-overlayStartedAt));
@@ -84,6 +86,36 @@ public class NodeService extends Service {
                 long nativeStartedAt = android.os.SystemClock.elapsedRealtime();
                 System.loadLibrary("node");
                 System.loadLibrary("tavernbridge");
+                try {
+                    System.loadLibrary("tavernnpu");
+                    LocalDreamRuntime.Result runtime = LocalDreamRuntime.stage(this);
+                    Log.i("TavernNpu", "runtime-stage " + runtime.json);
+                    String runtimePath = runtime.staged && runtime.directory != null
+                        ? runtime.directory.getAbsolutePath() : "";
+                    File npuDirectory = new File(root, ".android-npu");
+                    if (!npuDirectory.isDirectory() && !npuDirectory.mkdirs()) throw new IOException("Cannot create NPU metadata directory");
+                    org.json.JSONObject npuRuntime = new org.json.JSONObject();
+                    File helper = new File(getApplicationInfo().nativeLibraryDir, "libstable_diffusion_core.so");
+                    npuRuntime.put("helperPath", helper.isFile() ? helper.getAbsolutePath() : "");
+                    npuRuntime.put("runtimeDirectory", runtimePath);
+                    npuRuntime.put("runtimeStaged", runtime.staged);
+                    npuRuntime.put("socModel", android.os.Build.SOC_MODEL == null ? "" : android.os.Build.SOC_MODEL);
+                    File modelRoot = getExternalFilesDir("npu-models");
+                    npuRuntime.put("modelRoot", modelRoot == null ? "" : modelRoot.getAbsolutePath());
+                    try (FileOutputStream metadata = new FileOutputStream(new File(npuDirectory, "runtime.json"))) {
+                        metadata.write(npuRuntime.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8));
+                        metadata.getFD().sync();
+                    }
+                    Log.i("TavernNpu", "native-bridge " + LocalNpuBridge.getStatusJson(runtimePath));
+                    Log.i("TavernNpu", "native-core-executable " + LocalDreamRuntime.probeCoreExecutable(this, runtime.directory));
+                    if (BuildConfig.LOCAL_NPU_ENGINE_PROBE) {
+                        LocalDreamNpuProbe.Result engineProbe = LocalDreamNpuProbe.start(this, runtime.directory);
+                        npuEngineProbe = engineProbe.process;
+                        Log.i("TavernNpuEngine", "engine-smoke " + engineProbe.json);
+                    }
+                } catch (Throwable npuError) {
+                    Log.w("TavernNpu", "native-bridge unavailable", npuError);
+                }
                 Log.i("TavernStartup", "native-load elapsedMs=" + (android.os.SystemClock.elapsedRealtime()-nativeStartedAt) + " totalMs=" + (android.os.SystemClock.elapsedRealtime()-startupStartedAt));
                 int result = startNode(boot.getAbsolutePath(), root.getAbsolutePath());
                 Log.e("TavernProbe", "Node returned: " + result);
@@ -107,8 +139,59 @@ public class NodeService extends Service {
             try(OutputStream output=new FileOutputStream(new File(root,".apk-restart-request"))){output.write("rollback".getBytes(java.nio.charset.StandardCharsets.UTF_8));}
         }catch(Exception error){Log.e("TavernProbe","Update recovery failed",error);}
     }
+    private void cleanupManagedNpuHelper(File root, String reason) {
+        File marker = new File(new File(root, ".android-npu"), "helper.pid");
+        if (!marker.isFile()) return;
+        try {
+            byte[] bytes;
+            try (InputStream input = new FileInputStream(marker); ByteArrayOutputStream output = new ByteArrayOutputStream()) {
+                byte[] buffer = new byte[512];
+                int count;
+                while ((count = input.read(buffer)) != -1 && output.size() < 4096) output.write(buffer, 0, count);
+                bytes = output.toByteArray();
+            }
+            org.json.JSONObject record = new org.json.JSONObject(new String(bytes, java.nio.charset.StandardCharsets.UTF_8));
+            int pid = record.optInt("pid", -1);
+            File expected = new File(getApplicationInfo().nativeLibraryDir, "libstable_diffusion_core.so");
+            if (pid > 0 && pid != android.os.Process.myPid() && expected.getAbsolutePath().equals(record.optString("helperPath"))) {
+                File processDirectory = new File("/proc/" + pid);
+                if (!processDirectory.isDirectory()) {
+                    Log.i("TavernNpuEngine", "Managed helper already exited before " + reason + ", pid=" + pid);
+                } else {
+                String command;
+                try (InputStream input = new FileInputStream(new File(processDirectory, "cmdline")); ByteArrayOutputStream output = new ByteArrayOutputStream()) {
+                    byte[] buffer = new byte[512];
+                    int count;
+                    while ((count = input.read(buffer)) != -1 && output.size() < 4096) output.write(buffer, 0, count);
+                    command = output.toString("UTF-8");
+                }
+                boolean sameUid = false;
+                try (BufferedReader reader = new BufferedReader(new InputStreamReader(new FileInputStream(new File(processDirectory, "status"))))) {
+                    String line;
+                    while ((line = reader.readLine()) != null) {
+                        if (line.startsWith("Uid:")) {
+                            String[] values = line.substring(4).trim().split("\\s+");
+                            sameUid = values.length > 0 && Integer.parseInt(values[0]) == android.os.Process.myUid();
+                            break;
+                        }
+                    }
+                }
+                if (sameUid && command.contains(expected.getAbsolutePath())) {
+                    android.os.Process.killProcess(pid);
+                    Log.i("TavernNpuEngine", "Stopped managed helper during " + reason + ", pid=" + pid);
+                }
+                }
+            }
+        } catch (Exception error) {
+            Log.w("TavernNpuEngine", "Managed helper cleanup failed during " + reason, error);
+        } finally {
+            if (!marker.delete() && marker.exists()) Log.w("TavernNpuEngine", "Could not remove stale NPU PID record");
+        }
+    }
     @Override public IBinder onBind(Intent intent) { return null; }
     @Override public void onDestroy() {
+        if (npuEngineProbe != null && npuEngineProbe.isAlive()) npuEngineProbe.destroy();
+        cleanupManagedNpuHelper(new File(getFilesDir(), "tavern"), "service-destroy");
         if (probeWakeLock != null && probeWakeLock.isHeld()) probeWakeLock.release();
         super.onDestroy();
     }

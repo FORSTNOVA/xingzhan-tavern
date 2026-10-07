@@ -20,6 +20,8 @@ artifacts/
 artifacts-home.html
 scratch/
 screen*.png
+localdream-api-probe.png
+/tools/local-sd/localdream-validation/phone.png
 *.apk
 *.onnx
 *.far
@@ -28,3 +30,18 @@ screen*.png
 *.pyc
 app/src/main/assets/tavern.zip
 release_assets/
+
+# Local SD assets are device/host-specific and several are multi-GB.
+# Keep bridge sources and documentation; do not commit build outputs,
+# downloaded model weights, executables, or extracted third-party checkouts.
+/tools/local-sd/build-*/
+/tools/local-sd/*.gguf
+/tools/local-sd/*.safetensors
+/tools/local-sd/sd
+/tools/local-sd/sd-src/
+/tools/local-sd/sd-cpp-src/
+/tools/local-sd/ggml-src/
+/tools/local-sd/spirv-headers/
+/tools/local-sd/vulkan-headers/
+/tools/local-sd/vulkan-hpp/
+/tools/local-sd/local-dream-src/

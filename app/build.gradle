@@ -16,7 +16,32 @@ tasks.register('packTavern', Exec) {
             rootProject.file('app/src/main/assets/android-characters.js'),
             rootProject.file('app/src/main/assets/android-characters.version')
 }
-tasks.named('preBuild').configure { dependsOn 'packSynthesis', 'packTavern' }
+def localDreamApk = project.findProperty('localDreamApk')
+        ? rootProject.file(project.property('localDreamApk').toString())
+        : rootProject.file('tools/local-sd/localdream-validation/LocalDream_armv8a_2.8.1.apk')
+def localDreamCore = rootProject.file('app/build/generated/localdream/jniLibs/arm64-v8a/libstable_diffusion_core.so')
+tasks.register('extractLocalDreamNpuCore') {
+    inputs.file(localDreamApk).optional()
+    outputs.file(localDreamCore)
+    onlyIf { localDreamApk.isFile() }
+    doLast {
+        def entryName = 'lib/arm64-v8a/libstable_diffusion_core.so'
+        def extractionRoot = rootProject.file('app/build/generated/localdream/extracted')
+        ant.unzip(src: localDreamApk, dest: extractionRoot, overwrite: true) {
+            patternset { include(name: entryName) }
+        }
+        def extracted = new File(extractionRoot, entryName)
+        if (!extracted.isFile() || extracted.length() == 0) throw new GradleException("Local Dream APK is missing ${entryName}")
+        localDreamCore.parentFile.mkdirs()
+        copy {
+            from extracted
+            into localDreamCore.parentFile
+            rename { localDreamCore.name }
+        }
+        logger.lifecycle("Extracted Local Dream ${extracted.length()} byte native helper into generated jniLibs")
+    }
+}
+tasks.named('preBuild').configure { dependsOn 'packSynthesis', 'packTavern', 'extractLocalDreamNpuCore' }
 android {
     namespace 'cn.jiuguan.probe'
     compileSdk 36
@@ -29,11 +54,12 @@ android {
         versionCode 1
         versionName '0.1-probe'
         buildConfigField 'boolean', 'WAKELOCK_PROBE', (project.findProperty('probeWakeLock') ?: 'false').toString()
-        ndk { abiFilters 'arm64-v8a', 'x86_64' }
+        ndk { abiFilters 'arm64-v8a' }
+        buildConfigField 'boolean', 'LOCAL_NPU_ENGINE_PROBE', (project.findProperty('localNpuEngineProbe') ?: 'false').toString()
         externalNativeBuild { cmake { arguments '-DANDROID_STL=c++_shared' } }
     }
     externalNativeBuild { cmake { path 'src/main/cpp/CMakeLists.txt'; version '3.22.1' } }
-    sourceSets { main { jniLibs.srcDirs = ['../runtime/node24/bin'] } }
+    sourceSets { main { jniLibs.srcDirs = ['../runtime/node24/bin', 'build/generated/localdream/jniLibs'] } }
     packaging { jniLibs { useLegacyPackaging = true } }
     compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
 }

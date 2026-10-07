@@ -207,16 +207,104 @@ async function shareGlobalExtensions(root,baseRoot){
  }
  await fs.symlink(shared,original,process.platform==='win32'?'junction':'dir');
 }
+async function enforceBackupRetention(root){
+ try{
+  const utilFile=path.join(root,'src/util.js');
+  let text=await fs.readFile(utilFile,'utf8');
+  if(text.includes("getConfigValue('backups.common.numberOfBackups', 50, 'number')")){
+   await fs.writeFile(utilFile,text.replace("getConfigValue('backups.common.numberOfBackups', 50, 'number')","getConfigValue('backups.common.numberOfBackups', 5, 'number')"));
+  }
+  const backupDir=path.join(root,'data/default-user/backups');
+  const entries=await fs.readdir(backupDir).catch(()=>[]);
+  const settings=[];const chats=new Map();
+  for(const f of entries){
+   if(f.startsWith('settings_'))settings.push(f);
+   else if(f.startsWith('chat_')){
+    const m=f.match(/^(chat_.*?)_\d{8}-\d{6}\.jsonl$/);
+    const k=m?m[1]:'other';
+    if(!chats.has(k))chats.set(k,[]);
+    chats.get(k).push(f);
+   }
+  }
+  settings.sort();
+  if(settings.length>5)for(const f of settings.slice(0,-5))await fs.unlink(path.join(backupDir,f)).catch(()=>{});
+  for(const [,flist] of chats){
+   flist.sort();
+   if(flist.length>5)for(const f of flist.slice(0,-5))await fs.unlink(path.join(backupDir,f)).catch(()=>{});
+  }
+ }catch{}
+}
+async function enforceTtsRetention(root, assetRoot, days = 7) {
+ try {
+  const candidates = [
+   path.join(root, '.android-system-tts'),
+   path.join(root, 'tavern/.android-system-tts'),
+   path.join(assetRoot, '.android-system-tts'),
+   path.join(assetRoot, 'tavern/.android-system-tts')
+  ];
+  const maxAgeMs = days * 24 * 60 * 60 * 1000;
+  const now = Date.now();
+  let totalCleanedCount = 0;
+  let totalFreedBytes = 0;
+
+  for (const dir of new Set(candidates)) {
+   let entries;
+   try { entries = await fs.readdir(dir); } catch { continue; }
+   for (const entry of entries) {
+    const fullPath = path.join(dir, entry);
+    try {
+     const stat = await fs.stat(fullPath);
+     if (entry.endsWith('.tmp')) {
+      if (now - stat.mtimeMs > 3600000) await fs.unlink(fullPath).catch(() => {});
+      continue;
+     }
+     if (!entry.endsWith('.wav') && !entry.endsWith('.json')) continue;
+     const lastUsed = Math.max(stat.atimeMs || 0, stat.mtimeMs || 0);
+     if (now - lastUsed > maxAgeMs) {
+      totalFreedBytes += stat.size || 0;
+      await fs.unlink(fullPath).catch(() => {});
+      totalCleanedCount++;
+     }
+    } catch {}
+   }
+  }
+  if (totalCleanedCount > 0) {
+   console.info(`[XINGZHAN_TTS] 淘汰超过 ${days} 天未使用的语音缓存 ${totalCleanedCount} 项，释放 ${(totalFreedBytes / 1024 / 1024).toFixed(2)} MB`);
+  }
+ } catch (e) {
+  console.warn('[XINGZHAN_TTS] 语音缓存淘汰失败:', e.message);
+ }
+}
 export async function patchRuntime(root,assetRoot){
  await patchMedia(root,assetRoot);
  await applyAndroidCharacterListCache(root,assetRoot);
  await startupTiming(root,assetRoot);
+ await enforceBackupRetention(root);
+ await enforceTtsRetention(root, assetRoot, 7);
  if(path.resolve(root)!==path.resolve(assetRoot))for(const name of ['android-git.mjs','android-routes.mjs','android-downloads.js','android-probe.html'])await fs.copyFile(path.join(assetRoot,name),path.join(root,name));
  const extensions=path.join(root,'src/endpoints/extensions.js');let text=await fs.readFile(extensions,'utf8');
  const original="import { CheckRepoActions, default as simpleGit } from 'simple-git';";
  const replacement="import { CheckRepoActions, androidGit as simpleGit } from '../../android-git.mjs';";
  if(!text.includes(original)&&!text.includes(replacement))throw new Error('新版本扩展接口已变化，需更新 APK 后再升级');
  if(text.includes(original))await fs.writeFile(extensions,text.replace(original,replacement));
+ // Android-bundled/local extensions may not contain a .git directory. Upstream
+ // checks freshness (and fetches) before checking that, so update-all can fail
+ // on a perfectly valid local extension. Check first and report a clean skip.
+ text=await fs.readFile(extensions,'utf8');
+ const updateCheck="const { isUpToDate, remoteUrl } = await checkIfRepoIsUpToDate(extensionPath);";
+ const updateGuard="const repositoryCheck = simpleGit({ baseDir: extensionPath, ...OPTIONS });\n        if (!await repositoryCheck.checkIsRepo(CheckRepoActions.IS_REPO_ROOT)) {\n            console.info(`Skipping update for non-Git extension at ${extensionPath}`);\n            return response.send({ shortCommitHash: '', extensionPath, isUpToDate: true, remoteUrl: '', skipped: true, reason: 'not-a-git-repository' });\n        }\n        "+updateCheck;
+ if(!text.includes(updateCheck)&&!text.includes('Skipping update for non-Git extension'))throw new Error('扩展更新处理接口已变化，无法安全应用 Android 非 Git 插件兼容补丁');
+ if(!text.includes('Skipping update for non-Git extension'))await fs.writeFile(extensions,text.replace(updateCheck,updateGuard));
+ const clientExtensions=path.join(root,'public/scripts/extensions.js');
+ text=await fs.readFile(clientExtensions,'utf8');
+ const responseAnchor='const data = await response.json();';
+ const updateFunctionStart=text.indexOf('async function updateExtension(');
+ const responseIndex=text.indexOf(responseAnchor,updateFunctionStart);
+ if(updateFunctionStart<0||responseIndex<0)throw new Error('扩展更新客户端接口已变化，无法应用非 Git 插件提示');
+ if(!text.slice(responseIndex,responseIndex+500).includes('if (data.skipped)')){
+  const responseGuard=responseAnchor+"\n\n        if (data.skipped) {\n            if (!quiet) {\n                toastr.warning('This extension is local or has no Git repository, so it was skipped.');\n            }\n            return;\n        }";
+  await fs.writeFile(clientExtensions,text.slice(0,responseIndex)+text.slice(responseIndex).replace(responseAnchor,responseGuard));
+ }
  const server=path.join(root,'src/server-main.js');text=await fs.readFile(server,'utf8');
  if(!text.includes('installAndroidRoutes(app)')){
   if(!text.includes('function apply404Middleware() {'))throw new Error('新版本服务器接口已变化，需更新 APK 后再升级');

@@ -3,6 +3,7 @@ package cn.jiuguan.probe;
 import android.app.Activity;
 import android.content.Intent;
 import android.content.pm.ResolveInfo;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -33,7 +34,7 @@ final class SystemTtsBridge {
         JSONArray list=new JSONArray();for(ResolveInfo info:activity.getPackageManager().queryIntentServices(new Intent(TextToSpeech.Engine.INTENT_ACTION_TTS_SERVICE),0)){
             if(info.serviceInfo==null||!info.serviceInfo.exported||!info.serviceInfo.enabled)continue;
             String packageName=info.serviceInfo.packageName,version="";long versionCode=0;
-            try{android.content.pm.PackageInfo packageInfo=activity.getPackageManager().getPackageInfo(packageName,0);version=packageInfo.versionName==null?"":packageInfo.versionName;versionCode=packageInfo.getLongVersionCode();}catch(Exception ignored){}
+            try{android.content.pm.PackageInfo packageInfo=activity.getPackageManager().getPackageInfo(packageName,0);version=packageInfo.versionName==null?"":packageInfo.versionName;versionCode=Build.VERSION.SDK_INT>=Build.VERSION_CODES.P?packageInfo.getLongVersionCode():packageInfo.versionCode;}catch(Exception ignored){}
             list.put(new JSONObject().put("package",packageName).put("label",info.loadLabel(activity.getPackageManager()).toString()).put("version",version).put("versionCode",versionCode));
         }return list;
     }
@@ -72,7 +73,7 @@ final class SystemTtsBridge {
         if(tts.setVoice(chosen)!=TextToSpeech.SUCCESS||tts.setSpeechRate((float)rate)!=TextToSpeech.SUCCESS||tts.setPitch((float)pitch)!=TextToSpeech.SUCCESS)throw new IOException("引擎不支持所选音色或参数");
         JSONObject metadata=new JSONObject().put("scopeId",scope).put("engine",engine).put("voice",name).put("rate",rate).put("pitch",pitch).put("text",text).put("version",activity.getPackageManager().getPackageInfo(engine,0).versionName);
         String key=hex(MessageDigest.getInstance("SHA-256").digest(metadata.toString().getBytes(StandardCharsets.UTF_8)));File directory=new File(activity.getFilesDir(),"tavern/.android-system-tts");if(!directory.exists()&&!directory.mkdirs())throw new IOException("无法建立系统语音缓存目录");
-        File audio=new File(directory,key+".wav"),info=new File(directory,key+".json");if(audio.isFile()&&audio.length()>44&&info.isFile()){finish(new JSONObject().put("key",key).put("cached",true),null);return;}
+        File audio=new File(directory,key+".wav"),info=new File(directory,key+".json");if(audio.isFile()&&audio.length()>44&&info.isFile()){long now=System.currentTimeMillis();audio.setLastModified(now);info.setLastModified(now);finish(new JSONObject().put("key",key).put("cached",true),null);return;}
         temporary=new File(directory,key+"."+UUID.randomUUID()+".tmp");final File writing=temporary;utterance=UUID.randomUUID().toString();final String current=utterance;
         tts.setOnUtteranceProgressListener(new UtteranceProgressListener(){
             @Override public void onStart(String id){}

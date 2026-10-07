@@ -60,6 +60,21 @@
 - 完整跨引擎 TTS 分流与合成插件，支持安卓内置引擎、本地 Sherpa、星栈中转与官方 API 直连。
 - 本地 Kokoro 交互式音色融合：可选两种音色、设置混合比例并替换现有音色槽位；融合需导出模型文件并由用户放回 Sherpa 模型目录，插件不会直接改写系统引擎数据。详见 [星栈合成插件说明](plugins/xingzhan-synthesis/README.md#kokoro-交互式音色融合)。
 
+## 文档入口与当前状态（2026-10-07）
+
+以下文档按用途分工，避免把旧验收记录误读为当前待办或最新实现：
+
+- [Git 工作流与 GitHub 发布](GIT-WORKFLOW.md)：分支、提交、密钥/大文件排除和 APK Release 约定。
+- [插件使用与功能边界](plugins/xingzhan-synthesis/README.md)：当前用户功能、配置及 Kokoro 文件导出流程，是合成插件的使用说明。
+- [合成实现记录](SYNTHESIS-PLUGIN.md)：按日期保留实现和验收历史；文首“当前状态”优先于后续历史条目。
+- [合成路线图](SYNTHESIS-ROADMAP.md)：汇总已经落地的阶段和仍待验证/实现的事项，不再把旧版首期计划当作当前状态。
+- [分类质量评估](TTS-EVALUATION-REPORT.md) 与 [2026-10-04 五项验收快照](TTS-ACCEPTANCE-20261004.md)：保存当时的样本、调用数和限制；它们不是 2026-10-07 的新测试。
+- 本地 SD 开发生图的交接与脚本分别见 [本地 SD 交接记录](LOCAL-SD-HANDOFF.md) 和 [脚本索引](scripts/local-sd/README.md)；模型、编译缓存及第三方源码保留为本机资产。
+
+源码仓库只保存可维护的源码、脚本和文档。构建 APK、模型权重、运行时下载和本机 Android Studio 配置均不进入 Git；需要分发时请使用 GitHub Releases。仓库结构和提交约定见 [Git 工作流文档](GIT-WORKFLOW.md)。
+
+当前边界：人物分类、卡片隔离记忆、审核纠正/撤销/锁定及片段内局部重分析已经实现；真实分类准确率仍受样本和模型限制，不能保证所有卡片均无误。Android 系统语音、Sherpa/Kokoro 本地引擎和云端 API 是不同后端。Kokoro 融合目前生成可替换模型文件，不会热注入或自动写入 Sherpa 私有模型目录；用户需备份、替换并重新检测。AIShell-3 是独立 TTS APK 的预置模型信息，不代表手机当前选用的 Kokoro 模型。
+
 ## 本机准备与构建
 
 本次使用 SDK 36、NDK 27.2.12479018、CMake 3.22.1、AGP 8.11.1、Gradle 8.14.3 和本机 JBR 21。Android Studio 自带 JBR 25 不适用于这版 Gradle，导入项目时应选择 JDK 21。
@@ -71,7 +86,7 @@
 
 `build.ps1` 使用当前电脑的 `.jdks/jbr-21.0.11`。其他电脑需调整该路径或设置合适的 JDK。`local.properties` 使用本机 SDK 路径，不提交。APK 输出在 `app/build/outputs/apk/debug/app-debug.apk`。
 
-两种 ABI：arm64-v8a 用于 64 位安卓真机，x86_64 用于模拟器。最小 Android 8.0；当前仅在较新的模拟器验证，不能据此宣布所有 Android 8+ 设备兼容。旧的 32 位手机暂不支持。
+当前 APK 只打包 `arm64-v8a`，以控制安装包体积；x86_64 模拟器需另行调整 ABI 过滤配置后构建。最小 Android 8.0；当前仅在较新的模拟器验证，不能据此宣布所有 Android 8+ 设备兼容。旧的 32 位手机暂不支持。
 
 ## 真机连接
 

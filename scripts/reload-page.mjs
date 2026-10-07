@@ -1,4 +1,7 @@
+import {execFileSync} from 'node:child_process';
 import {connect} from './webview-cdp.mjs';
+const adb = 'C:/Users/21654/AppData/Local/Android/Sdk/platform-tools/adb.exe';
+execFileSync(adb, ['-s', 'ca168055', 'forward', 'tcp:19222', 'localabstract:webview_devtools_remote_5896']);
 
 const c = await connect();
 try {

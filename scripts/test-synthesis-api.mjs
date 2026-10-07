@@ -231,6 +231,8 @@ try{
    scopeId:'card:IMG_A',
    source:{label:'消息#1',excerpt:'她站在海边'}
   }),genImgRes);
+  for(let i=0;i<100&&!genImgRes.writableEnded;i++)await new Promise(resolve=>setTimeout(resolve,10));
+  assert.equal(genImgRes.writableEnded,true,'queued image generation should settle the request');
   assert.equal(genImgRes.statusCode,200);
   assert.equal(genImgRes.result.format,'png');
   assert.ok(genImgRes.result.historyId);

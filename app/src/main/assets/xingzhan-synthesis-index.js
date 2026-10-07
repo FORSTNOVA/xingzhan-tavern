@@ -1,10 +1,10 @@
 import {extension_settings} from '/scripts/extensions.js';
 import {saveSettingsDebounced} from '/script.js';
 import {saveBase64AsFile} from '/scripts/utils.js';
-import {showAnalysisFailureDiagnostic,form,mount,initSelectionTts,messageSpeechData,mediaRequest,relayImage,generateImagePrompt,loadImageHistory,deleteImageHistory,analyzeSpeech,loadVoiceMemory,saveVoiceMemory,currentSpeechScope,listSpeechSessions,loadSpeechSession,saveSpeechSession,loadSpeechWorldReferences,worldReferenceStatus,mountSpeechReviewTools,speechReviewReasons,unresolvedSpeechSegments,voiceGenderLabel,classifyVoiceGender,classifyCharacterGender} from './media.js';
+import {showAnalysisFailureDiagnostic,form,mount,initSelectionTts,messageSpeechData,currentCardImageSource,mediaRequest,relayImage,tokenizeNpuImagePrompt,getImageQueueStatus,cancelImageTask,generateImagePrompt,loadImageHistory,deleteImageHistory,analyzeSpeech,loadVoiceMemory,saveVoiceMemory,currentSpeechScope,listSpeechSessions,loadSpeechSession,loadSpeechWorldReferences,worldReferenceStatus,mountSpeechReviewTools,speechReviewReasons,unresolvedSpeechSegments,voiceGenderLabel,classifyVoiceGender,classifyCharacterGender} from './media.js';
 import {mountSystemSpeech,nativeTts,detectSystemEngines,classifyInstalledEngine,emotionParameters} from './system.js';
 
-let settings,speech,workspace,dialog,analysisController,generationController,imageController,imageEpoch=0,epoch=0,source=null,imagePromptController=null,lastImageSource=null,imageHistory=[];
+let settings,speech,workspace,dialog,imageDialog,analysisController,generationController,imageController,imageEpoch=0,epoch=0,source=null,imagePromptController=null,lastImageSource=null,imageHistory=[];
 let playQueue=[],playIndex=0,voiceMemory={schemaVersion:1,characters:[]};
 let activeScope,activeSession=null,draftTimer,draftTail=Promise.resolve();
 let systemSpeech,pauseTimer=null,activePreview=null;
@@ -187,18 +187,39 @@ export async function init(){
  <details><summary>角色音色记忆</summary><p data-memory-status role="status">加载中…</p><div data-memory-list></div></details>
  <details open><summary>文本分析模型</summary>${form('analysis')}</details><details><summary>API 语音生成配置</summary>${form('tts')}</details></details>
  <details open><summary><b>多引擎协同语音</b></summary><p>支持本地 Sherpa (Kokoro-82M)、星栈 Gemini 3.8、安卓系统内置语音多引擎分工。在配音窗口中可选择黄金混合、全离线等协作策略。</p><div class="xs-actions"><button class="menu_button" type="button" data-open-system>打开单引擎系统配音</button><button class="menu_button" type="button" data-panel-detect>检测手机语音引擎</button></div></details>
- <details open><summary><b>图片生成</b></summary><textarea class="text_pole" data-image-prompt placeholder="描述要生成的图片"></textarea><input class="text_pole" data-image-style-hint placeholder="画风偏好（可选，如：日系厚涂、二次元写实、水彩插画）" style="margin-top:6px"><div class="xs-actions" style="margin:8px 0"><button class="menu_button" type="button" data-prompt-from-latest>根据最新回复生成提示词</button><button class="menu_button" type="button" data-prompt-from-selection>根据选区生成提示词</button><button class="menu_button" type="button" data-prompt-cancel disabled>停止生成提示词</button></div><p data-image-prompt-status role="status" style="font-size:0.88em;opacity:0.9;margin:4px 0"></p><label>图片比例<select class="text_pole" data-image-ratio><option>1:1</option><option>3:4</option><option>4:3</option><option>9:16</option><option>16:9</option><option>2:3</option><option>3:2</option></select></label><p>点击生成将调用中转。生成提示词需调用分析模型，生图独立计费。</p><div class="xs-actions"><button class="menu_button" type="button" data-image-generate>生成图片</button><button class="menu_button" type="button" data-image-stop disabled>停止生成</button></div><p data-image-status role="status"></p><img data-image-preview hidden alt="合成结果"><a data-image-link hidden target="_blank" rel="noopener">打开已保存图片</a><details open style="margin-top:12px"><summary><b>当前角色卡图片历史</b> (<span data-image-history-count>0</span>)<button type="button" class="menu_button xs-mini-btn" data-image-history-refresh>刷新</button></summary><div data-image-history-list class="xs-image-history-list"></div></details>${form('image')}</details>
+ <details open><summary><b>图片生成</b></summary><div class="xs-actions" style="margin-bottom:8px;"><button class="menu_button" type="button" data-open-image-dialog style="font-weight:bold;">🎨 打开插图工作台窗口</button></div><textarea class="text_pole" data-image-prompt placeholder="描述要生成的图片"></textarea><p data-image-token-status role="status" style="font-size:0.85em;margin:4px 0"></p><input class="text_pole" data-image-style-hint placeholder="画风偏好（可选，如：日系厚涂、二次元写实、水彩插画）" style="margin-top:6px"><div class="xs-actions" style="margin:8px 0"><button class="menu_button" type="button" data-prompt-from-latest>根据最新回复生成提示词</button><button class="menu_button" type="button" data-prompt-from-selection>根据选区生成提示词</button><button class="menu_button" type="button" data-prompt-cancel disabled>停止生成提示词</button></div><p data-image-prompt-status role="status" style="font-size:0.88em;opacity:0.9;margin:4px 0"></p><label>图片比例<select class="text_pole" data-image-ratio><option>1:1</option><option>3:4</option><option>4:3</option><option>9:16</option><option>16:9</option><option>2:3</option><option>3:2</option></select></label><p>本机 NPU 不调用云端生图；自动构思提示词会调用所选文本模型。</p><div class="xs-actions"><button class="menu_button" type="button" data-image-generate>生成图片</button><button class="menu_button" type="button" data-image-stop disabled>停止生成</button></div>
+   <div data-image-queue-panel class="xs-image-queue-panel" style="display:none;margin:8px 0;padding:8px 10px;border-radius:8px;background:rgba(0,0,0,0.22);border:1px solid var(--SmartThemeBorderColor,#666);">
+    <div data-image-queue-active style="display:none;margin-bottom:6px;">
+     <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+      <span style="font-weight:bold;color:#4caf50;">⏳ 正在渲染图片</span>
+      <span data-image-queue-elapsed style="font-size:0.85em;opacity:0.85;">已耗时: 0s</span>
+     </div>
+     <div data-image-queue-prompt style="font-size:0.85em;margin:4px 0;opacity:0.9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"></div>
+     <div class="xs-actions" style="margin-top:4px;gap:6px;">
+      <button type="button" class="menu_button xs-mini-btn" data-image-queue-cancel-active style="color:#ff5252!important;font-weight:bold;">⏹ 终止此任务并释放手机资源</button>
+     </div>
+    </div>
+    <div data-image-queue-pending style="display:none;">
+     <div style="font-weight:bold;font-size:0.88em;margin-bottom:4px;opacity:0.9;">📋 等待生成队列 (<span data-image-queue-count>0</span>)：</div>
+     <div data-image-queue-list style="max-height:120px;overflow-y:auto;font-size:0.82em;display:flex;flex-direction:column;gap:4px;"></div>
+    </div>
+   </div>
+<p data-image-status role="status"></p><img data-image-preview hidden alt="合成结果"><a data-image-link hidden target="_blank" rel="noopener">打开已保存图片</a><details open style="margin-top:12px"><summary><b>当前角色卡图片历史</b> (<span data-image-history-count>0</span>)<button type="button" class="menu_button xs-mini-btn" data-image-history-refresh>刷新</button></summary><div data-image-history-list class="xs-image-history-list"></div></details>${form('image')}</details>
  </div></div>`;
  document.querySelector('#extensions_settings').prepend(panel);
  createSpeechDialog();
+ createImageDialog();
  const openSystem=async detect=>{settings.speechProvider='system';saveSettingsDebounced();await openSpeech();if(detect)await systemSpeech.detect().catch(()=>{});};panel.querySelector('[data-open-system]').onclick=()=>void openSystem(false);panel.querySelector('[data-panel-detect]').onclick=()=>void openSystem(true);
  const selection=panel.querySelector('[data-selection]');selection.checked=settings.selectionEnabled!==false;
  speech=initSelectionTts(()=>settings.selectionEnabled!==false,openSpeech);
  selection.addEventListener('change',()=>{settings.selectionEnabled=selection.checked;if(!selection.checked)speech.stop();saveSettingsDebounced();});
  panel.querySelector('[data-open-speech]').addEventListener('click',()=>openSpeech());
  panel.querySelector('[data-full-message]').addEventListener('click',()=>{const message=[...document.querySelectorAll('#chat .mes')].reverse().find(item=>item.getAttribute('is_user')!=='true'&&item.getAttribute('is_system')!=='true');if(message)openSpeech(messageSpeechData(message));else toastr.info('当前没有可配音的回复，可在配音窗口粘贴整段文本');});
+ panel.querySelector('[data-open-image-dialog]')?.addEventListener('click',()=>openImageDialog());
  panel.querySelector('[data-image-generate]').addEventListener('click',()=>void generateImage());
- panel.querySelector('[data-image-stop]').addEventListener('click',()=>imageController?.abort());
+ panel.querySelector('[data-image-prompt]').addEventListener('input',()=>scheduleNpuTokenStatus(panel));
+ panel.querySelector('[data-image-stop]').addEventListener('click',()=>void stopImageGeneration());
+ panel.querySelector('[data-image-queue-cancel-active]')?.addEventListener('click', ()=>void stopImageGeneration());
  panel.querySelector('[data-prompt-from-latest]').addEventListener('click',()=>runPromptFromLatest());
  panel.querySelector('[data-prompt-from-selection]').addEventListener('click',()=>runPromptFromSelection());
  panel.querySelector('[data-prompt-cancel]').addEventListener('click',()=>imagePromptController?.abort());
@@ -428,9 +449,299 @@ export async function openSpeech(data){
  }catch(error){if(token===epoch)workspace.querySelector('[data-analysis-status]').textContent='配音库读取失败：'+error.message;}
 }
 
+function getImageRoots(){
+ return [imageDialog,document.querySelector('#xingzhan-synthesis')].filter(Boolean);
+}
+
+const npuTokenTimers=new WeakMap();
+function scheduleNpuTokenStatus(root){
+ const previous=npuTokenTimers.get(root);if(previous)clearTimeout(previous);
+ npuTokenTimers.set(root,setTimeout(()=>void refreshNpuTokenStatus(root),300));
+}
+async function refreshNpuTokenStatus(root){
+ const input=root.querySelector('[data-image-prompt]'),status=root.querySelector('[data-image-token-status]');
+ if(!input||!status)return;
+ const prompt=input.value.trim();if(!prompt){status.textContent='';return;}
+ try{
+  const cfg=await mediaRequest('config/image').then(r=>r.json());
+  if(input.value.trim()!==prompt)return;
+  if(cfg.source!=='npu'){status.textContent='';return;}
+  const tokens=await tokenizeNpuImagePrompt(prompt);
+  if(input.value.trim()!==prompt)return;
+  const positive=tokens.positive,negative=tokens.negative;
+  const over=positive.count>positive.maxLength||negative.count>negative.maxLength;
+  status.dataset.state=over?'error':positive.count>70?'warning':'ok';
+  status.textContent='本机 NPU：正面 '+positive.count+'/'+positive.maxLength+' token · 负面 '+negative.count+'/'+negative.maxLength+(over?'；已超限，请先精简':'');
+  if(positive.count>positive.maxLength&&positive.overflowOffset>=0)status.textContent+='；超出部分从「'+prompt.slice(positive.overflowOffset,positive.overflowOffset+50)+'」开始';
+ }catch(error){
+  if(input.value.trim()!==prompt)return;
+  status.dataset.state='warning';status.textContent='本机 NPU token：'+error.message;
+ }
+}
+
+function createImageDialog(){
+ if(document.querySelector('#xingzhan-image-dialog'))return;
+ imageDialog=document.createElement('dialog');
+ imageDialog.id='xingzhan-image-dialog';
+ imageDialog.innerHTML=`<div class="xs-dialog-heading">
+  <h3 data-image-dialog-title>🎨 星栈插图生成工作台</h3>
+  <button class="menu_button" type="button" data-image-dialog-close>关闭</button>
+ </div>
+ <div class="xs-dialog-body" data-image-workspace>
+  <div data-image-source-info style="font-size:0.88em;opacity:0.85;margin-bottom:8px;padding:8px 12px;background:rgba(255,255,255,0.06);border-radius:6px;border-left:3px solid var(--SmartThemeQuoteColor,#2979ff);"></div>
+
+  <div data-image-quick-bar style="display:flex;align-items:center;gap:8px;margin:4px 0 10px 0;padding:8px 10px;background:rgba(255,255,255,0.06);border-radius:6px;border:1px solid rgba(255,255,255,0.12);">
+   <span style="font-size:0.88em;white-space:nowrap;font-weight:bold;">🖼️ 生图引擎/模型:</span>
+   <select data-image-quick-model class="text_pole" style="flex:1;font-size:0.88em;padding:4px 6px;margin:0;"></select>
+   <button type="button" class="menu_button xs-mini-btn" data-image-quick-refresh title="刷新模型列表" style="margin:0;padding:4px 8px;">🔄</button>
+  </div>
+
+  <label>提示词 (Prompt)</label>
+  <textarea class="text_pole" data-image-prompt placeholder="描述要生成的画面主体、外貌、动作、服装、光影与背景"></textarea>
+  <p data-image-token-status role="status" style="font-size:0.85em;margin:4px 0"></p>
+
+  <div style="display:grid;grid-template-columns:1fr 140px;gap:8px;margin-top:6px;">
+   <div>
+    <label>画风偏好（可选）</label>
+    <input class="text_pole" data-image-style-hint placeholder="如：日系厚涂、二次元写实、精致古风、赛博朋克">
+   </div>
+   <div>
+    <label>画面比例</label>
+    <select class="text_pole" data-image-ratio>
+     <option value="1:1">1:1 (方图)</option>
+     <option value="3:4" selected>3:4 (立绘推荐)</option>
+     <option value="4:3">4:3 (横幅)</option>
+     <option value="9:16">9:16 (手机壁纸)</option>
+     <option value="16:9">16:9 (电脑壁纸)</option>
+     <option value="2:3">2:3 (经典人像)</option>
+     <option value="3:2">3:2 (经典横版)</option>
+    </select>
+   </div>
+  </div>
+
+  <div class="xs-actions" style="margin:10px 0;gap:6px;display:flex;flex-wrap:wrap;">
+   <button class="menu_button" type="button" data-image-generate style="font-weight:bold;background:var(--SmartThemeQuoteColor,#2979ff)!important;color:#fff!important;">🎨 生成图片</button>
+   <button class="menu_button" type="button" data-image-stop disabled style="font-weight:bold;color:#ff5252!important;border:1px solid rgba(255,82,82,0.4)!important;">⏹️ 强行停止生图</button>
+   <button class="menu_button" type="button" data-prompt-rethink>🔄 重新构思提示词</button>
+   <button class="menu_button" type="button" data-prompt-cancel disabled>停止构思</button>
+  </div>
+
+   <div data-image-queue-panel class="xs-image-queue-panel" style="display:none;margin:8px 0;padding:8px 10px;border-radius:8px;background:rgba(0,0,0,0.22);border:1px solid var(--SmartThemeBorderColor,#666);">
+    <div data-image-queue-active style="display:none;margin-bottom:6px;">
+     <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+      <span style="font-weight:bold;color:#4caf50;">⏳ 正在渲染图片</span>
+      <span data-image-queue-elapsed style="font-size:0.85em;opacity:0.85;">已耗时: 0s</span>
+     </div>
+     <div data-image-queue-prompt style="font-size:0.85em;margin:4px 0;opacity:0.9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"></div>
+     <div class="xs-actions" style="margin-top:4px;gap:6px;">
+      <button type="button" class="menu_button xs-mini-btn" data-image-queue-cancel-active style="color:#ff5252!important;font-weight:bold;">⏹ 终止此任务并释放手机资源</button>
+     </div>
+    </div>
+    <div data-image-queue-pending style="display:none;">
+     <div style="font-weight:bold;font-size:0.88em;margin-bottom:4px;opacity:0.9;">📋 等待生成队列 (<span data-image-queue-count>0</span>)：</div>
+     <div data-image-queue-list style="max-height:120px;overflow-y:auto;font-size:0.82em;display:flex;flex-direction:column;gap:4px;"></div>
+    </div>
+   </div>
+
+  <p data-image-status role="status" style="font-weight:bold;margin:6px 0;"></p>
+  <p data-image-prompt-status role="status" style="font-size:0.88em;opacity:0.9;margin:4px 0;"></p>
+
+  <div data-image-preview-box style="margin:12px 0;text-align:center;">
+   <img data-image-preview hidden alt="合成结果" style="max-width:100%;max-height:48vh;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,0.4);object-fit:contain;">
+   <div class="xs-actions" style="justify-content:center;margin-top:8px;">
+    <a data-image-link hidden class="menu_button" target="_blank" rel="noopener">在新窗口查看原图</a>
+   </div>
+  </div>
+
+  <details style="margin-top:12px;border:1px solid var(--SmartThemeBorderColor,#888);border-radius:8px;padding:8px;">
+   <summary style="cursor:pointer;font-weight:bold;">⚙️ 生图引擎配置 (本地 SD / 云端中转)</summary>
+   ${form('image')}
+  </details>
+
+  <details open style="margin-top:12px;border:1px solid var(--SmartThemeBorderColor,#888);border-radius:8px;padding:8px;">
+   <summary style="cursor:pointer;font-weight:bold;">🖼️ 当前角色卡图片历史 (<span data-image-history-count>0</span>) <button type="button" class="menu_button xs-mini-btn" data-image-history-refresh>刷新</button></summary>
+   <div data-image-history-list class="xs-image-history-list"></div>
+  </details>
+ </div>`;
+
+ document.body.append(imageDialog);
+ imageDialog.querySelector('[data-image-dialog-close]').onclick=()=>imageDialog.close();
+ imageDialog.querySelector('[data-image-generate]').onclick=()=>void generateImage();
+ imageDialog.querySelector('[data-image-prompt]').addEventListener('input',()=>scheduleNpuTokenStatus(imageDialog));
+ imageDialog.querySelector('[data-image-stop]').onclick=()=>void stopImageGeneration();
+ imageDialog.querySelector('[data-image-queue-cancel-active]')?.addEventListener('click', ()=>void stopImageGeneration());
+ imageDialog.querySelector('[data-prompt-cancel]').onclick=()=>imagePromptController?.abort();
+ imageDialog.querySelector('[data-image-history-refresh]').onclick=()=>refreshImageHistory();
+ imageDialog.querySelector('[data-prompt-rethink]').onclick=()=>{
+  let source=lastImageSource;
+  if(!source||!source.text){
+   const latestMessage=[...document.querySelectorAll('#chat .mes')].reverse().find(item=>item.getAttribute('is_user')!=='true'&&item.getAttribute('is_system')!=='true')||document.querySelector('#chat .mes');
+   if(latestMessage)source=messageSpeechData(latestMessage);
+   else source=currentCardImageSource();
+  }
+  if(source&&source.text){
+   lastImageSource=source;
+   const sourceInfo=imageDialog.querySelector('[data-image-source-info]');
+   if(sourceInfo){
+    sourceInfo.textContent='剧情参考：'+(source.label||'当前对话')+' —— '+source.text.slice(0,100)+(source.text.length>100?'…':'');
+    sourceInfo.hidden=false;
+   }
+   runImagePromptTask(source.text,source.context||[],source.label||'当前对话',source);
+  }else{
+   toastr.info('暂无关联剧情或角色卡素材，请在提示词框中直接输入');
+  }
+ };
+ mount(imageDialog.querySelector('[data-kind="image"]'),'image').catch(()=>{});
+ syncWorkbenchModels(imageDialog);
+ imageDialog.querySelector('[data-image-quick-refresh]')?.addEventListener('click', (e) => {
+  e.preventDefault();
+  syncWorkbenchModels(imageDialog);
+ });
+}
+
+async function syncWorkbenchModels(dialog) {
+ const select = dialog.querySelector('[data-image-quick-model]');
+ if (!select) return;
+ try {
+  const cfg = await (await mediaRequest('config/image')).json();
+  const st = await (await mediaRequest('local-engine/status')).json();
+  select.replaceChildren();
+
+  // Local models optgroup
+  const localGroup = document.createElement('optgroup');
+  localGroup.label = '📱 本地离线 SD 模型 (0 Token / 无审查)';
+  if (Array.isArray(st.allModels) && st.allModels.length > 0) {
+   for (const m of st.allModels) {
+    const isCur = cfg.source === 'local' && (m.name === (cfg.selectedModel || st.selectedModel || st.modelName));
+    const label = m.isComplete === false
+     ? '⚠️ 本地: ' + m.name + ' (' + m.sizeMb + 'MB · 缺CLIP不可单跑)'
+     : '✅ 本地: ' + m.name + ' (' + m.sizeMb + 'MB · 完整版)';
+    const opt = new Option(label, 'local:' + m.name);
+    if (isCur) opt.selected = true;
+    localGroup.appendChild(opt);
+   }
+  } else {
+   const emptyOpt = new Option('未发现本地模型 (请放入 tools/local-sd)', 'local:none');
+   emptyOpt.disabled = true;
+   localGroup.appendChild(emptyOpt);
+  }
+  select.appendChild(localGroup);
+
+  const npuGroup=document.createElement('optgroup');npuGroup.label='⚡ 本机 NPU 模型';
+  const npu=await mediaRequest('npu/status').then(r=>r.json()).catch(()=>({models:[]}));
+  for(const item of npu.models||[]){const opt=new Option((npu.running&&npu.modelName===item.name?'✅ ':'⚡ ')+item.name,'npu:'+item.name);if(cfg.source==='npu'&&cfg.selectedModel===item.name)opt.selected=true;npuGroup.appendChild(opt);}
+  if(!npuGroup.children.length){const opt=new Option('尚未导入 NPU 模型','npu:none');opt.disabled=true;npuGroup.appendChild(opt);}
+  select.appendChild(npuGroup);
+
+  // Cloud relay optgroup
+  const relayGroup = document.createElement('optgroup');
+  relayGroup.label = '☁️ 云端中转模型';
+  const relayModels = ['gemini-3.1-flash-image', 'gemini-2.5-flash-image'];
+  if (cfg.model && !relayModels.includes(cfg.model)) relayModels.unshift(cfg.model);
+  for (const rm of relayModels) {
+   const isCur = cfg.source === 'relay' && cfg.model === rm;
+   const opt = new Option('云端: ' + rm, 'relay:' + rm);
+   if (isCur) opt.selected = true;
+   relayGroup.appendChild(opt);
+  }
+  select.appendChild(relayGroup);
+
+  if (!select.dataset.bound) {
+   select.dataset.bound = 'true';
+   select.addEventListener('change', async () => {
+    const val = select.value;
+    const statusText = dialog.querySelector('[data-image-status]');
+    try {
+     const curCfg = await (await mediaRequest('config/image')).json();
+     if (val.startsWith('local:')) {
+      const modelName = val.slice(6);
+      if (modelName === 'none') return;
+      const chosenObj = st.allModels?.find(m => m.name === modelName);
+      if (chosenObj && chosenObj.isComplete === false) {
+       if (window.toastr?.warning) window.toastr.warning('提示：「' + modelName + '」为纯 UNet 降噪切片（缺少内置 CLIP 文本编码器），系统生图时将自动平替为完整版模型出图。');
+      }
+      await mediaRequest('config/image', { ...curCfg, source: 'local', selectedModel: modelName });
+      await mediaRequest('local-engine/start', {});
+      if (statusText) {
+       statusText.textContent = (chosenObj && chosenObj.isComplete === false ? '已选模型: ' + modelName + ' (自动完整模型平替)' : '已切换为本地模型: ' + modelName);
+       statusText.style.color = '#4caf50';
+      }
+      if (window.toastr?.success) window.toastr.success('已切换为本地模型: ' + modelName);
+     } else if (val.startsWith('npu:')) {
+      const modelName=val.slice(4);if(modelName==='none')return;
+      await mediaRequest('npu/select',{model:modelName});
+      await mediaRequest('npu/start',{model:modelName});
+      if(statusText)statusText.textContent='已启动本机 NPU：'+modelName;
+     } else if (val.startsWith('relay:')) {
+      const relayModel = val.slice(6);
+      await mediaRequest('config/image', { ...curCfg, source: 'relay', model: relayModel });
+      if (statusText) {
+       statusText.textContent = '已切换为云端模型: ' + relayModel;
+       statusText.style.color = '#4caf50';
+      }
+      if (window.toastr?.success) window.toastr.success('已切换为云端中转: ' + relayModel);
+     }
+     await syncWorkbenchModels(dialog);
+     scheduleNpuTokenStatus(dialog);
+     mount(dialog.querySelector('[data-kind="image"]'), 'image').catch(() => {});
+    } catch (e) {
+     if (statusText) {
+      statusText.textContent = '切换失败: ' + e.message;
+      statusText.style.color = '#f44336';
+     }
+     if (window.toastr?.error) window.toastr.error('切换失败: ' + e.message);
+    }
+   });
+  }
+ } catch (err) {
+  console.error('[Workbench] Failed to sync models:', err);
+ }
+}
+
+export async function openImageDialog(data){
+ if(!imageDialog)createImageDialog();
+ syncImageQueueUI().catch(()=>{});
+ if(!data&&!lastImageSource){
+  const latestMessage=[...document.querySelectorAll('#chat .mes')].reverse().find(item=>item.getAttribute('is_user')!=='true'&&item.getAttribute('is_system')!=='true')||document.querySelector('#chat .mes');
+  if(latestMessage)data=messageSpeechData(latestMessage);
+  else data=currentCardImageSource();
+ }
+ activeScope=data?.cardScope||currentSpeechScope();
+ if(imageDialog)syncWorkbenchModels(imageDialog);
+ const sourceInfo=imageDialog.querySelector('[data-image-source-info]');
+ const status=imageDialog.querySelector('[data-image-status]');
+ const promptStatus=imageDialog.querySelector('[data-image-prompt-status]');
+ const promptInput=imageDialog.querySelector('[data-image-prompt]');
+ const preview=imageDialog.querySelector('[data-image-preview]');
+ const link=imageDialog.querySelector('[data-image-link]');
+
+ if(preview)preview.hidden=true;
+ if(link)link.hidden=true;
+ if(status)status.textContent='';
+ if(promptStatus)promptStatus.textContent='';
+ scheduleNpuTokenStatus(imageDialog);
+
+ if(data){
+  lastImageSource=data;
+  if(sourceInfo){
+   sourceInfo.textContent='剧情参考：'+(data.label||'当前对话')+' —— '+data.text.slice(0,100)+(data.text.length>100?'…':'');
+   sourceInfo.hidden=false;
+  }
+ }else{
+  if(sourceInfo)sourceInfo.hidden=true;
+ }
+
+ if(!imageDialog.open)imageDialog.showModal();
+ refreshImageHistory().catch(()=>{});
+
+ if(data&&data.text){
+  await runImagePromptTask(data.text,data.context||[],data.label||'当前对话',data);
+ }
+}
+
 function installMessageActions(){
  const chat=document.querySelector('#chat');if(!chat)return;
- const add=()=>{for(const message of chat.querySelectorAll('.mes')){if(message.querySelector('[data-xs-speech]'))continue;const target=message.querySelector('.mes_block');if(!target)continue;const row=document.createElement('div');row.className='xs-message-actions';const button=document.createElement('button');button.type='button';button.dataset.xsSpeech='';button.className='xs-chat-speech';button.textContent='配音整条消息';button.title='分析并配音整条消息';button.addEventListener('click',event=>{event.stopPropagation();openSpeech(messageSpeechData(message));});const imgBtn=document.createElement('button');imgBtn.type='button';imgBtn.className='xs-chat-speech';imgBtn.textContent='生成插图';imgBtn.title='根据此条消息构思插图提示词';imgBtn.addEventListener('click',event=>{event.stopPropagation();runPromptFromMessage(message);});row.append(button,imgBtn);target.append(row);}};
+ const add=()=>{for(const message of chat.querySelectorAll('.mes')){if(message.querySelector('[data-xs-speech]'))continue;const target=message.querySelector('.mes_block');if(!target)continue;const row=document.createElement('div');row.className='xs-message-actions';const button=document.createElement('button');button.type='button';button.dataset.xsSpeech='';button.className='xs-chat-speech';button.textContent='配音整条消息';button.title='分析并配音整条消息';button.addEventListener('click',event=>{event.stopPropagation();openSpeech(messageSpeechData(message));});const imgBtn=document.createElement('button');imgBtn.type='button';imgBtn.className='xs-chat-speech';imgBtn.textContent='生成插图';imgBtn.title='构思插图并打开生成工作台';imgBtn.addEventListener('click',event=>{event.stopPropagation();openImageDialog(messageSpeechData(message));});row.append(button,imgBtn);target.append(row);}};
  add();let timer;new MutationObserver(()=>{clearTimeout(timer);timer=setTimeout(add,100);}).observe(chat,{childList:true,subtree:true});
 }
 
@@ -859,9 +1170,17 @@ async function runPromptFromMessage(message,selectedText){
  await runImagePromptTask(data.text,data.context,data.label,{label:data.label,excerpt:data.text.slice(0,160)});
 }
 function runPromptFromLatest(){
- const message=[...document.querySelectorAll('#chat .mes')].reverse().find(item=>item.getAttribute('is_user')!=='true'&&item.getAttribute('is_system')!=='true');
- if(!message){toastr.info('当前没有可用的聊天回复');return;}
- runPromptFromMessage(message);
+ const message=[...document.querySelectorAll('#chat .mes')].reverse().find(item=>item.getAttribute('is_user')!=='true'&&item.getAttribute('is_system')!=='true')||document.querySelector('#chat .mes');
+ if(message){
+  openImageDialog(messageSpeechData(message));
+  return;
+ }
+ const cardSrc=currentCardImageSource();
+ if(cardSrc){
+  openImageDialog(cardSrc);
+  return;
+ }
+ toastr.info('当前没有可用的聊天回复或角色卡素材');
 }
 function runPromptFromSelection(){
  const selection=window.getSelection();
@@ -871,81 +1190,274 @@ function runPromptFromSelection(){
  if(!start){toastr.info('所选文本不在聊天正文内');return;}
  const text=selection.toString().trim();
  if(!text){toastr.info('所选内容为空');return;}
- runPromptFromMessage(start.closest('.mes'),text);
+ openImageDialog(messageSpeechData(start.closest('.mes'),text));
 }
 async function runImagePromptTask(text,context,sourceLabel,sourceObj){
- const panel=document.querySelector('#xingzhan-synthesis');
- const status=panel.querySelector('[data-image-prompt-status]');
- const cancelBtn=panel.querySelector('[data-prompt-cancel]');
- const promptInput=panel.querySelector('[data-image-prompt]');
- const styleInput=panel.querySelector('[data-image-style-hint]');
- const ratioSelect=panel.querySelector('[data-image-ratio]');
+ const roots=getImageRoots();
+ const setAllStatus=msg=>{for(const r of roots){const el=r.querySelector('[data-image-prompt-status]');if(el)el.textContent=msg;}};
+ const setCancelDisabled=val=>{for(const r of roots){const el=r.querySelector('[data-prompt-cancel]');if(el)el.disabled=val;}};
  imagePromptController?.abort();
- const controller=new AbortController();imagePromptController=controller;cancelBtn.disabled=false;
- status.textContent=`正在根据「${sourceLabel}」由文本模型构思图片提示词…`;
+ const controller=new AbortController();imagePromptController=controller;setCancelDisabled(false);
+ setAllStatus(`正在根据「${sourceLabel}」由文本模型构思图片提示词…`);
  try{
   const scope=currentSpeechScope();
-  const res=await generateImagePrompt(text,context,controller.signal,{styleHint:styleInput?.value?.trim()||'',scopeId:scope.id});
+  const styleHint=imageDialog?.querySelector('[data-image-style-hint]')?.value?.trim()||document.querySelector('#xingzhan-synthesis [data-image-style-hint]')?.value?.trim()||'';
+  const res=await generateImagePrompt(text,context,controller.signal,{styleHint,scopeId:scope.id});
   if(controller.signal.aborted)return;
-  promptInput.value=res.prompt;
-  if(res.aspect_ratio&&[...ratioSelect.options].some(o=>o.value===res.aspect_ratio))ratioSelect.value=res.aspect_ratio;
+  for(const r of roots){
+   const pInput=r.querySelector('[data-image-prompt]');if(pInput){pInput.value=res.prompt;scheduleNpuTokenStatus(r);}
+   const rSel=r.querySelector('[data-image-ratio]');if(rSel&&res.aspect_ratio&&[...rSel.options].some(o=>o.value===res.aspect_ratio))rSel.value=res.aspect_ratio;
+  }
   lastImageSource=sourceObj;
-  status.textContent=`提示词已生成${res.title?'（'+res.title+'）':''}，推荐比例 ${res.aspect_ratio}。点击下方“生成图片”即可开始绘制。`;
-  panel.querySelector('details[open]')?.scrollIntoView({behavior:'smooth',block:'nearest'});
+  setAllStatus(`提示词已生成${res.title?'（'+res.title+'）':''}，推荐比例 ${res.aspect_ratio}。点击“生成图片”即可开始绘制。`);
  }catch(error){
-  if(controller.signal.aborted){status.textContent='已取消生成提示词';}
-  else{status.textContent='生成提示词失败：'+(error.message||error);}
+  if(controller.signal.aborted){setAllStatus('已取消生成提示词');}
+  else{setAllStatus('生成提示词失败：'+(error.message||error));}
  }finally{
-  if(imagePromptController===controller){imagePromptController=null;cancelBtn.disabled=true;}
+  if(imagePromptController===controller){imagePromptController=null;setCancelDisabled(true);}
  }
 }
 async function refreshImageHistory(){
- const panel=document.querySelector('#xingzhan-synthesis');if(!panel)return;
  try{
   const scope=currentSpeechScope();const res=await loadImageHistory(scope);
   imageHistory=res.images||[];renderImageHistory(imageHistory);
  }catch(error){console.warn('Load image history failed',error);}
 }
 function renderImageHistory(list){
- const panel=document.querySelector('#xingzhan-synthesis');if(!panel)return;
- const countEl=panel.querySelector('[data-image-history-count]');if(countEl)countEl.textContent=list.length;
- const container=panel.querySelector('[data-image-history-list]');if(!container)return;
- container.replaceChildren();
- if(!list.length){container.innerHTML='<p style="font-size:0.85em;opacity:0.75;grid-column:1/-1">当前角色卡暂无生成的图片历史</p>';return;}
- for(const item of list){
-  const card=document.createElement('div');card.className='xs-image-card';
-  const timeStr=item.createdAt?new Date(item.createdAt).toLocaleString(undefined,{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'}):'';
-  card.innerHTML=`<img src="${escapeHtml(item.url)}" alt="历史图片" loading="lazy" title="点击新窗口查看原图"><div class="xs-image-meta"><span>${escapeHtml(item.ratio||'1:1')} · ${escapeHtml(item.format||'png')}</span><span>${escapeHtml(timeStr)}</span></div>${item.source?.label?'<div style="font-size:0.78em;opacity:0.8">来源：'+escapeHtml(item.source.label)+'</div>':''}<div class="xs-image-prompt-text" title="${escapeHtml(item.prompt)}">${escapeHtml(item.prompt)}</div><div class="xs-actions"><button type="button" class="menu_button" data-use-prompt>使用提示词</button><button type="button" class="menu_button" data-view-orig>查看</button><button type="button" class="menu_button" data-del-img>删除</button></div>`;
-  card.querySelector('img').addEventListener('click',()=>window.open(item.url,'_blank'));
-  card.querySelector('[data-view-orig]').addEventListener('click',()=>window.open(item.url,'_blank'));
-  card.querySelector('[data-use-prompt]').addEventListener('click',()=>{
-   const promptInput=panel.querySelector('[data-image-prompt]'),ratioSelect=panel.querySelector('[data-image-ratio]');
-   if(promptInput)promptInput.value=item.prompt;
-   if(ratioSelect&&item.ratio&&[...ratioSelect.options].some(o=>o.value===item.ratio))ratioSelect.value=item.ratio;
-   lastImageSource=item.source||null;promptInput?.focus();
-   panel.querySelector('[data-image-status]').textContent='已载入历史提示词及比例设置';
-  });
-  card.querySelector('[data-del-img]').addEventListener('click',async()=>{
-   if(!confirm('确定删除此张历史图片吗？'))return;
-   try{await deleteImageHistory(item.id,currentSpeechScope());await refreshImageHistory();}
-   catch(err){toastr.error('删除失败：'+err.message);}
-  });
-  container.append(card);
+ const roots=getImageRoots();
+ for(const root of roots){
+  const countEl=root.querySelector('[data-image-history-count]');if(countEl)countEl.textContent=list.length;
+  const container=root.querySelector('[data-image-history-list]');if(!container)continue;
+  container.replaceChildren();
+  if(!list.length){container.innerHTML='<p style="font-size:0.85em;opacity:0.75;grid-column:1/-1">当前角色卡暂无生成的图片历史</p>';continue;}
+  for(const item of list){
+   const card=document.createElement('div');card.className='xs-image-card';
+   const timeStr=item.createdAt?new Date(item.createdAt).toLocaleString(undefined,{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'}):'';
+   card.innerHTML=`<img src="${escapeHtml(item.url)}" alt="历史图片" loading="lazy" title="点击新窗口查看原图"><div class="xs-image-meta"><span>${escapeHtml(item.ratio||'1:1')} · ${escapeHtml(item.format||'png')}</span><span>${escapeHtml(timeStr)}</span></div>${item.source?.label?'<div style="font-size:0.78em;opacity:0.8">来源：'+escapeHtml(item.source.label)+'</div>':''}<div class="xs-image-prompt-text" title="${escapeHtml(item.prompt)}">${escapeHtml(item.prompt)}</div><div class="xs-actions"><button type="button" class="menu_button" data-use-prompt>使用提示词</button><button type="button" class="menu_button" data-view-orig>查看</button><button type="button" class="menu_button" data-del-img>删除</button></div>`;
+   card.querySelector('img').addEventListener('click',()=>window.open(item.url,'_blank'));
+   card.querySelector('[data-view-orig]').addEventListener('click',()=>window.open(item.url,'_blank'));
+   card.querySelector('[data-use-prompt]').addEventListener('click',()=>{
+    for(const r of roots){
+     const promptInput=r.querySelector('[data-image-prompt]'),ratioSelect=r.querySelector('[data-image-ratio]');
+     if(promptInput){promptInput.value=item.prompt;scheduleNpuTokenStatus(r);}
+     if(ratioSelect&&item.ratio&&[...ratioSelect.options].some(o=>o.value===item.ratio))ratioSelect.value=item.ratio;
+     const status=r.querySelector('[data-image-status]');if(status)status.textContent='已载入历史提示词及比例设置';
+    }
+    lastImageSource=item.source||null;
+   });
+   card.querySelector('[data-del-img]').addEventListener('click',async()=>{
+    if(!confirm('确定删除此张历史图片吗？'))return;
+    try{await deleteImageHistory(item.id,currentSpeechScope());await refreshImageHistory();}
+    catch(err){toastr.error('删除失败：'+err.message);}
+   });
+   container.append(card);
+  }
  }
 }
 
+
+let queuePollTimer = null;
+let lastRenderedFinishedTaskTime = 0;
+
+export async function syncImageQueueUI() {
+ try {
+  const status = await getImageQueueStatus();
+  const roots = getImageRoots();
+  const isBusy = !!status.isBusy;
+  const active = status.activeTask;
+  const queue = Array.isArray(status.queue) ? status.queue : [];
+  const lastFinished = status.lastFinishedTask;
+
+  for (const r of roots) {
+   const qPanel = r.querySelector('[data-image-queue-panel]');
+   if (!qPanel) continue;
+
+   if (isBusy || queue.length > 0) {
+    qPanel.style.display = 'block';
+
+    const actBox = qPanel.querySelector('[data-image-queue-active]');
+    if (actBox) {
+     if (active) {
+      actBox.style.display = 'block';
+      const promptEl = actBox.querySelector('[data-image-queue-prompt]');
+      if (promptEl) promptEl.textContent = `[${active.source==='npu'?'本机 NPU':active.source==='local'?'本地 SD':active.source==='localdream'?'Local Dream':'云端'}] ${active.prompt} (${active.ratio})`;
+      const elapsedEl = actBox.querySelector('[data-image-queue-elapsed]');
+      if (elapsedEl) elapsedEl.textContent = `已耗时: ${active.elapsedSeconds || 0}s`;
+     } else {
+      actBox.style.display = 'none';
+     }
+    }
+
+    const pendBox = qPanel.querySelector('[data-image-queue-pending]');
+    if (pendBox) {
+     if (queue.length > 0) {
+      pendBox.style.display = 'block';
+      const countEl = pendBox.querySelector('[data-image-queue-count]');
+      if (countEl) countEl.textContent = queue.length;
+      const listEl = pendBox.querySelector('[data-image-queue-list]');
+      if (listEl) {
+       listEl.innerHTML = queue.map(item => `
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:3px 6px;background:rgba(255,255,255,0.06);border-radius:4px;gap:6px;">
+         <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;">#${item.position} [${item.source==='local'?'本地':'云端'}] ${escapeHtml(item.prompt.slice(0,30))}... (${item.ratio})</span>
+         <button type="button" class="menu_button xs-mini-btn" data-cancel-queued-id="${item.id}" style="color:#ff8a80!important;padding:1px 6px;margin:0;">取消</button>
+        </div>
+       `).join('');
+       listEl.querySelectorAll('[data-cancel-queued-id]').forEach(btn => {
+        btn.onclick = async (e) => {
+         e.preventDefault();
+         await cancelImageTask(btn.getAttribute('data-cancel-queued-id'));
+         await syncImageQueueUI();
+        };
+       });
+      }
+     } else {
+      pendBox.style.display = 'none';
+     }
+    }
+
+    const genBtn = r.querySelector('[data-image-generate]');
+    if (genBtn) genBtn.textContent = '🎨 加入生成队列';
+    const stopBtn = r.querySelector('[data-image-stop]');
+    if (stopBtn) {
+     stopBtn.disabled = false;
+     stopBtn.textContent = '⏹️ 强行停止生图';
+    }
+   } else {
+    qPanel.style.display = 'none';
+    const genBtn = r.querySelector('[data-image-generate]');
+    if (genBtn) genBtn.textContent = '🎨 生成图片';
+    const stopBtn = r.querySelector('[data-image-stop]');
+    if (stopBtn) {
+     stopBtn.disabled = true;
+     stopBtn.textContent = '⏹️ 强行停止生图';
+    }
+
+    if (lastFinished && lastFinished.status === 'completed' && lastFinished.finishedAt > lastRenderedFinishedTaskTime) {
+     lastRenderedFinishedTaskTime = lastFinished.finishedAt;
+     if (lastFinished.data && lastFinished.format) {
+      const url = await saveBase64AsFile(lastFinished.data, 'xingzhan-synthesis', 'image-' + Date.now(), lastFinished.format).catch(() => null);
+      if (url) {
+       const preview = r.querySelector('[data-image-preview]');
+       if (preview) { preview.src = url; preview.hidden = false; }
+       const link = r.querySelector('[data-image-link]');
+       if (link) { link.href = url; link.hidden = false; }
+      }
+     }
+     const st = r.querySelector('[data-image-status]');
+     if (st) st.textContent = '已自动获取后台完成的生图！';
+     refreshImageHistory().catch(() => {});
+    }
+   }
+  }
+
+  if (isBusy || queue.length > 0) {
+   if (!queuePollTimer) {
+    queuePollTimer = setInterval(() => {
+     syncImageQueueUI().catch(() => {});
+    }, 2000);
+   }
+  } else {
+   if (queuePollTimer) {
+    clearInterval(queuePollTimer);
+    queuePollTimer = null;
+   }
+  }
+ } catch (err) {
+  console.error('[ImageQueue] Sync failed:', err);
+ }
+}
+
+function startQueuePolling() {
+ if (!queuePollTimer) {
+  queuePollTimer = setInterval(() => {
+   syncImageQueueUI().catch(() => {});
+  }, 2000);
+ }
+ syncImageQueueUI().catch(() => {});
+}
+
+export async function stopImageGeneration() {
+ const roots = getImageRoots();
+ for (const r of roots) {
+  const stopBtn = r.querySelector('[data-image-stop]');
+  if (stopBtn) {
+   stopBtn.disabled = true;
+   stopBtn.textContent = '⏹️ 正在强行终止...';
+  }
+  const st = r.querySelector('[data-image-status]');
+  if (st) st.textContent = '正在发送中断信号，强行终止生图进程并释放手机资源...';
+ }
+ imageEpoch++;
+ try {
+  await cancelImageTask('all');
+  const cfg=await mediaRequest('config/image').then(r=>r.json());
+  if(cfg.source==='npu')await mediaRequest('npu/stop',{}).catch(()=>{});
+  else if(cfg.source==='local')await mediaRequest('local-engine/stop',{}).catch(()=>{});
+ } catch {}
+ for (const r of roots) {
+  const genBtn = r.querySelector('[data-image-generate]');
+  if (genBtn) {
+   genBtn.disabled = false;
+   genBtn.textContent = '🎨 生成图片';
+  }
+  const stopBtn = r.querySelector('[data-image-stop]');
+  if (stopBtn) {
+   stopBtn.disabled = true;
+   stopBtn.textContent = '⏹️ 强行停止生图';
+  }
+  const st = r.querySelector('[data-image-status]');
+  if (st) {
+   st.textContent = '⏹️ 已强行停止当前生图，后台推理进程已杀死，手机算力已释放。';
+   st.style.color = '#ff9800';
+  }
+ }
+ if (window.toastr?.warning) window.toastr.warning('已强行终止生图任务并释放手机资源');
+ syncImageQueueUI().catch(() => {});
+}
+
 export async function generateImage(prompt,ratio){
- const panel=document.querySelector('#xingzhan-synthesis'),status=panel.querySelector('[data-image-status]'),button=panel.querySelector('[data-image-generate]'),stop=panel.querySelector('[data-image-stop]');
- prompt=String(prompt??panel.querySelector('[data-image-prompt]').value).trim();ratio=ratio??panel.querySelector('[data-image-ratio]').value;
- if(!prompt){status.textContent='请先填写图片描述';return;}if(imageController)return;
- const controller=new AbortController();imageController=controller;const current=++imageEpoch;button.disabled=true;stop.disabled=false;status.textContent='正在生成图片…';
+ const roots=getImageRoots();
+ const activeRoot=(imageDialog&&imageDialog.open)?imageDialog:(roots[0]||document);
+ prompt=String(prompt!=null?prompt:(activeRoot.querySelector('[data-image-prompt]')?.value||'')).trim();
+ ratio=ratio!=null?ratio:(activeRoot.querySelector('[data-image-ratio]')?.value||'1:1');
+ const setAllStatus=msg=>{for(const r of roots){const el=r.querySelector('[data-image-status]');if(el)el.textContent=msg;}};
+ if(!prompt){setAllStatus('请先填写图片描述');return;}
+ const current=++imageEpoch;
+ setAllStatus('正在提交生图任务…');
+ for(const r of roots){
+  const genBtn=r.querySelector('[data-image-generate]');if(genBtn)genBtn.textContent='⏳ 正在生成...';
+  const stopBtn=r.querySelector('[data-image-stop]');if(stopBtn){stopBtn.disabled=false;stopBtn.textContent='⏹️ 强行停止生图';}
+ }
+ startQueuePolling();
  try{
+  const cfg=await mediaRequest('config/image').then(r=>r.json());
+  if(cfg.source==='npu'){
+   const tokens=await tokenizeNpuImagePrompt(prompt);
+   if(tokens.positive.count>tokens.positive.maxLength)throw Error('正面提示词 '+tokens.positive.count+'/'+tokens.positive.maxLength+' token，已超限；请先编辑提示词');
+   if(tokens.negative.count>tokens.negative.maxLength)throw Error('负面提示词 '+tokens.negative.count+'/'+tokens.negative.maxLength+' token，已超限；请在生图设置中编辑');
+  }
   const scope=activeScope||currentSpeechScope(),extra={scopeId:scope.id,scopeLabel:scope.label,source:lastImageSource};
-  const result=await relayImage(prompt,ratio,controller.signal,extra);if(controller.signal.aborted||current!==imageEpoch)return;
-  const url=await saveBase64AsFile(result.data,'xingzhan-synthesis','image-'+Date.now(),result.format);if(controller.signal.aborted||current!==imageEpoch)return;
-  const preview=panel.querySelector('[data-image-preview]');preview.src=url;preview.hidden=false;const link=panel.querySelector('[data-image-link]');link.href=url;link.hidden=false;
-  status.textContent='生成成功，图片已保存到酒馆'+(result.historyError?'（'+result.historyError+'）':'与当前卡历史');
+  const result=await relayImage(prompt,ratio,null,extra);
+  if(current!==imageEpoch)return;
+  const url=await saveBase64AsFile(result.data,'xingzhan-synthesis','image-'+Date.now(),result.format);
+  if(current!==imageEpoch)return;
+  for(const r of roots){
+   const preview=r.querySelector('[data-image-preview]');if(preview){preview.src=url;preview.hidden=false;}
+   const link=r.querySelector('[data-image-link]');if(link){link.href=url;link.hidden=false;}
+  }
+  setAllStatus('生成成功，图片已保存到酒馆'+(result.historyError?'（'+result.historyError+'）':'与当前角色卡历史'));
   refreshImageHistory().catch(()=>{});
+  syncImageQueueUI().catch(()=>{});
   return url;
- }catch(error){status.textContent=controller.signal.aborted?'已停止生成':error.message;}finally{if(imageController===controller){imageController=null;button.disabled=false;stop.disabled=true;}}
+ }catch(error){
+  setAllStatus(error.message);
+  syncImageQueueUI().catch(()=>{});
+ }finally{
+  if(current===imageEpoch){
+   for(const r of roots){
+    const genBtn=r.querySelector('[data-image-generate]');if(genBtn)genBtn.textContent='🎨 生成图片';
+    const stopBtn=r.querySelector('[data-image-stop]');if(stopBtn){stopBtn.disabled=true;stopBtn.textContent='⏹️ 强行停止生图';}
+   }
+  }
+ }
 }
