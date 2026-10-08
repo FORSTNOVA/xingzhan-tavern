@@ -67,7 +67,7 @@ public class NodeService extends Service {
                 }
                 long overlayStartedAt = android.os.SystemClock.elapsedRealtime();
                 File boot = new File(root, "android-bootstrap.mjs");
-                for(String name:new String[]{"android-bootstrap.mjs","android-updates.mjs","android-management.mjs","android-management.html","android-patches.mjs","android-git.mjs","android-routes.mjs","android-downloads.js","android-probe.html","android-media.mjs","localdream-codec.mjs","android-media-patches.mjs","android-characters.js","android-characters.version","xingzhan-synthesis-manifest.json","xingzhan-synthesis-index.js","xingzhan-synthesis-media.js","xingzhan-synthesis-style.css","xingzhan-synthesis-system.js","xingzhan-synthesis-kokoro-blend.js"}) {
+                for(String name:new String[]{"android-bootstrap.mjs","android-updates.mjs","android-management.mjs","android-management.html","android-patches.mjs","android-git.mjs","android-routes.mjs","android-downloads.js","android-probe.html","android-media.mjs","localdream-codec.mjs","android-media-patches.mjs","android-characters.js","android-characters.version","xingzhan-synthesis-manifest.json","xingzhan-synthesis-index.js","xingzhan-synthesis-media.js","xingzhan-synthesis-style.css","xingzhan-synthesis-system.js","xingzhan-synthesis-kokoro-blend.js","xingzhan-synthesis-mascot.js","xingzhan-synthesis-mascot.png"}) {
                     try (InputStream in = getAssets().open(name); OutputStream out = new FileOutputStream(new File(root,name))) { byte[] buffer = new byte[32768]; int n; while ((n=in.read(buffer))>0) out.write(buffer,0,n); }
                 }
                 Log.i("TavernStartup", "android-assets-copy elapsedMs=" + (android.os.SystemClock.elapsedRealtime()-overlayStartedAt));
@@ -99,7 +99,8 @@ public class NodeService extends Service {
                     npuRuntime.put("helperPath", helper.isFile() ? helper.getAbsolutePath() : "");
                     npuRuntime.put("runtimeDirectory", runtimePath);
                     npuRuntime.put("runtimeStaged", runtime.staged);
-                    npuRuntime.put("socModel", android.os.Build.SOC_MODEL == null ? "" : android.os.Build.SOC_MODEL);
+                    npuRuntime.put("socModel", android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S
+                        && android.os.Build.SOC_MODEL != null ? android.os.Build.SOC_MODEL : "");
                     File modelRoot = getExternalFilesDir("npu-models");
                     npuRuntime.put("modelRoot", modelRoot == null ? "" : modelRoot.getAbsolutePath());
                     try (FileOutputStream metadata = new FileOutputStream(new File(npuDirectory, "runtime.json"))) {

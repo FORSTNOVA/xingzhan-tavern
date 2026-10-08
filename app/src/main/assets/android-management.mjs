@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
+import {checkAppRelease} from './android-updates.mjs';
 const origin='http://127.0.0.1:8788';
 export function managementHandler(manager){
  const token=crypto.randomBytes(32).toString('hex');let changing=false;
@@ -16,6 +17,7 @@ export function managementHandler(manager){
   if(req.headers['x-apk-management']!==token||(req.headers.origin&&req.headers.origin!==origin)){send(res,403,{error:'请从应用的管理页面操作'});return true;}
   try{
    if(pathname==='/manage/api/status'&&req.method==='GET'){send(res,200,manager.status());return true;}
+   if(pathname==='/manage/api/app-release'&&req.method==='GET'){send(res,200,await checkAppRelease());return true;}
    if(req.method!=='POST'){send(res,405,{error:'无效的操作'});return true;}
    if(changing)throw new Error('版本切换正在进行');
    if(pathname==='/manage/api/check')send(res,200,await manager.check());

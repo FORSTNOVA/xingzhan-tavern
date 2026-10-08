@@ -1,8 +1,9 @@
 import {extension_settings} from '/scripts/extensions.js';
-import {saveSettingsDebounced} from '/script.js';
+import {saveSettingsDebounced,isGenerating,saveSettings} from '/script.js';
 import {saveBase64AsFile} from '/scripts/utils.js';
 import {showAnalysisFailureDiagnostic,form,mount,initSelectionTts,messageSpeechData,currentCardImageSource,mediaRequest,relayImage,tokenizeNpuImagePrompt,getImageQueueStatus,cancelImageTask,generateImagePrompt,loadImageHistory,deleteImageHistory,analyzeSpeech,loadVoiceMemory,saveVoiceMemory,currentSpeechScope,listSpeechSessions,loadSpeechSession,loadSpeechWorldReferences,worldReferenceStatus,mountSpeechReviewTools,speechReviewReasons,unresolvedSpeechSegments,voiceGenderLabel,classifyVoiceGender,classifyCharacterGender} from './media.js';
 import {mountSystemSpeech,nativeTts,detectSystemEngines,classifyInstalledEngine,emotionParameters} from './system.js';
+import {mountMascot} from './mascot.js';
 
 let settings,speech,workspace,dialog,imageDialog,analysisController,generationController,imageController,imageEpoch=0,epoch=0,source=null,imagePromptController=null,lastImageSource=null,imageHistory=[];
 let playQueue=[],playIndex=0,voiceMemory={schemaVersion:1,characters:[]};
@@ -177,6 +178,8 @@ export async function init(){
  };
  settings.enginePool??={sherpa:true,gemini:true,builtin:true,sillytavern:false,other_local:false};
  settings.enginePreset??='golden';
+ settings.mascotEnabled??=true;
+ settings.mascotMinimized??=false;
  if(extension_settings.tts?.currentProvider==='星栈 Gemini TTS'){extension_settings.tts.currentProvider='OpenAI Compatible';extension_settings.tts.enabled=false;saveSettingsDebounced();}
  if(extension_settings.sd?.google_api==='xingzhan'){extension_settings.sd.google_api='makersuite';saveSettingsDebounced();}
  const panel=document.createElement('div');panel.id='xingzhan-synthesis';panel.className='extension_container';
@@ -209,6 +212,21 @@ export async function init(){
  document.querySelector('#extensions_settings').prepend(panel);
  createSpeechDialog();
  createImageDialog();
+ const mascotToggle=document.createElement('label');mascotToggle.className='checkbox_label';mascotToggle.innerHTML='<input type="checkbox" data-mascot-enabled>在酒馆内显示星灯悬浮入口';
+ panel.querySelector('.inline-drawer-content').append(mascotToggle);
+ const mascot=mountMascot({enabled:settings.mascotEnabled,position:settings.mascotPosition,minimized:settings.mascotMinimized,dockSide:settings.mascotDockSide,dockY:settings.mascotDockY,
+  onPosition:position=>{settings.mascotPosition=position;saveSettingsDebounced();},
+  onDock:state=>{settings.mascotMinimized=state.minimized;settings.mascotDockSide=state.side;settings.mascotDockY=state.y;saveSettingsDebounced();},
+  onHide:()=>{settings.mascotEnabled=false;mascotToggle.querySelector('input').checked=false;saveSettingsDebounced();},
+  actions:{
+   speech:()=>openSpeech(),
+   latest:()=>{const message=[...document.querySelectorAll('#chat .mes')].reverse().find(item=>item.getAttribute('is_user')!=='true'&&item.getAttribute('is_system')!=='true');if(!message)throw Error('当前没有可配音的回复');return openSpeech(messageSpeechData(message));},
+   image:()=>openImageDialog(null,{manual:true}),
+   chat:()=>{const chat=document.querySelector('#chat');if(!chat)throw Error('聊天界面尚未就绪');chat.scrollTo({top:chat.scrollHeight,behavior:'smooth'});},
+   manage:async()=>{if(isGenerating())throw Error('请先停止当前生成');const context=window.SillyTavern?.getContext();if(!context)throw Error('请等待酒馆加载完成');await context.saveChat();await saveSettings();location.href='http://127.0.0.1:8788/manage';}
+  }});
+ mascotToggle.querySelector('input').checked=settings.mascotEnabled;
+ mascotToggle.querySelector('input').addEventListener('change',event=>{settings.mascotEnabled=event.target.checked;mascot.setEnabled(settings.mascotEnabled);saveSettingsDebounced();});
  const openSystem=async detect=>{settings.speechProvider='system';saveSettingsDebounced();await openSpeech();if(detect)await systemSpeech.detect().catch(()=>{});};panel.querySelector('[data-open-system]').onclick=()=>void openSystem(false);panel.querySelector('[data-panel-detect]').onclick=()=>void openSystem(true);
  const selection=panel.querySelector('[data-selection]');selection.checked=settings.selectionEnabled!==false;
  speech=initSelectionTts(()=>settings.selectionEnabled!==false,openSpeech);
@@ -698,10 +716,11 @@ async function syncWorkbenchModels(dialog) {
  }
 }
 
-export async function openImageDialog(data){
+export async function openImageDialog(data,options={}){
  if(!imageDialog)createImageDialog();
  syncImageQueueUI().catch(()=>{});
- if(!data&&!lastImageSource){
+ if(options.manual)lastImageSource=null;
+ if(!data&&!lastImageSource&&!options.manual){
   const latestMessage=[...document.querySelectorAll('#chat .mes')].reverse().find(item=>item.getAttribute('is_user')!=='true'&&item.getAttribute('is_system')!=='true')||document.querySelector('#chat .mes');
   if(latestMessage)data=messageSpeechData(latestMessage);
   else data=currentCardImageSource();

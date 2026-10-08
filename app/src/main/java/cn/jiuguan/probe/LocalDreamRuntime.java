@@ -49,7 +49,8 @@ final class LocalDreamRuntime {
         JSONObject result = new JSONObject();
         File destination = null;
         try {
-            String soc = Build.SOC_MODEL == null ? "" : Build.SOC_MODEL.trim().toUpperCase();
+            String soc = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && Build.SOC_MODEL != null
+                ? Build.SOC_MODEL.trim().toUpperCase(java.util.Locale.ROOT) : "";
             String htpArch = SOC_TO_HTP.get(soc);
             result.put("sourcePackage", PACKAGE);
             result.put("socModel", soc);

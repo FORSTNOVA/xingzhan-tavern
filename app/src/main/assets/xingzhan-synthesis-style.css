@@ -98,3 +98,29 @@
 [data-image-token-status][data-state="warning"] {color:#ffe082}
 [data-image-token-status][data-state="error"] {color:#ef9a9a}
 @media(max-width:400px) {.xs-npu-panel .xs-npu-file-row {align-items:flex-start;flex-direction:column}.xs-npu-panel .xs-npu-actions {grid-template-columns:1fr}.xs-npu-panel .xs-npu-actions [data-npu-action="refresh"] {grid-column:auto}}
+
+/* The mascot lives inside Tavern's WebView and never requests Android overlay permission. */
+#xingzhan-mascot {position:fixed;width:68px;height:68px;z-index:2147483000;pointer-events:none}
+#xingzhan-mascot[hidden],#xingzhan-mascot-panel[hidden] {display:none!important}
+#xingzhan-mascot .xs-mascot-bubble {display:grid;place-items:center;width:68px;height:68px;padding:0;border:1px solid #e2bd72;border-radius:50%;background:radial-gradient(circle at 45% 38%,#343b63,#171b34 75%);box-shadow:0 4px 14px #0009;overflow:hidden;cursor:grab;touch-action:none;pointer-events:auto}
+#xingzhan-mascot .xs-mascot-bubble:active {cursor:grabbing}
+#xingzhan-mascot .xs-mascot-bubble:focus-visible,#xingzhan-mascot-panel button:focus-visible {outline:3px solid #f7d88f;outline-offset:2px}
+#xingzhan-mascot .xs-mascot-bubble img {display:block;width:88%;height:88%;object-fit:contain;pointer-events:none;user-select:none}
+#xingzhan-mascot[data-minimized="true"] {width:44px;height:60px}
+#xingzhan-mascot[data-minimized="true"] .xs-mascot-bubble {position:relative;width:44px;height:60px;border-radius:14px 0 0 14px;border-right:0}
+#xingzhan-mascot[data-minimized="true"][data-side="left"] .xs-mascot-bubble {border-radius:0 14px 14px 0;border-right:1px solid #e2bd72;border-left:0}
+#xingzhan-mascot[data-minimized="true"] .xs-mascot-bubble img {position:absolute;left:50%;top:50%;width:62px;height:62px;max-width:none;max-height:none;transform:translate(-50%,-50%)}
+#xingzhan-mascot-panel {position:fixed;inset:auto;margin:0;box-sizing:border-box;width:min(320px,calc(100vw - 16px));max-height:min(65dvh,calc(100dvh - 16px));overflow:auto;overscroll-behavior:contain;padding:12px;border:1px solid #ae8a56;border-radius:16px;background:#1d2238;color:#f5eedf;box-shadow:0 12px 30px #000b;pointer-events:auto}
+#xingzhan-mascot-panel header {display:flex;justify-content:space-between;align-items:start;gap:10px;margin-bottom:12px}
+#xingzhan-mascot-panel header strong {display:block;font-size:1.07rem;color:#ffe0a3}
+#xingzhan-mascot-panel header small {display:block;opacity:.76;margin-top:2px}
+#xingzhan-mascot-panel .xs-mascot-header-actions {display:flex;gap:6px;flex:none}
+#xingzhan-mascot-panel button {color:inherit;font:inherit;cursor:pointer}
+#xingzhan-mascot-panel :is([data-xs-mascot-minimize],[data-xs-mascot-close]) {flex:none;width:36px;height:36px;padding:0;border:1px solid #ffffff50;border-radius:9px;background:#ffffff14;font-size:1.45rem;line-height:1}
+#xingzhan-mascot-panel .xs-mascot-actions {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+#xingzhan-mascot-panel .xs-mascot-actions button {min-height:68px;padding:10px;text-align:left;border:1px solid #ffffff36;border-radius:10px;background:#ffffff12}
+#xingzhan-mascot-panel .xs-mascot-actions button:active {background:#e0b56c42}
+#xingzhan-mascot-panel .xs-mascot-actions b {display:block;font-size:.94rem;color:#ffe0a3}
+#xingzhan-mascot-panel .xs-mascot-actions small {display:block;margin-top:4px;opacity:.82;line-height:1.3}
+#xingzhan-mascot-panel [data-xs-mascot-status] {min-height:1em;margin:9px 0 0;color:#ffd9a1;font-size:.85rem}
+#xingzhan-mascot-panel .xs-mascot-hide {display:block;width:100%;min-height:40px;margin-top:6px;border:0;border-radius:8px;background:#ffffff12;color:#e6d6c0}

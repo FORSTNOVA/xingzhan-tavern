@@ -21,6 +21,7 @@ public class MainActivity extends Activity {
     private String performanceScript = "";
     private String downloadScript = "";
     private boolean togglePerformanceAfterLoad;
+    private boolean openManagementAfterReady;
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final long startupStartedAt = SystemClock.elapsedRealtime();
     private WebView web;
@@ -40,6 +41,7 @@ public class MainActivity extends Activity {
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
         togglePerformanceAfterLoad = ACTION_PERFORMANCE.equals(getIntent().getAction());
+        openManagementAfterReady = ACTION_MAINTENANCE.equals(getIntent().getAction());
         try (java.io.InputStream input = getAssets().open("mobile-performance.js")) {
             java.io.ByteArrayOutputStream scriptBytes = new java.io.ByteArrayOutputStream();
             byte[] buffer = new byte[4096]; int count;
@@ -48,7 +50,6 @@ public class MainActivity extends Activity {
         } catch (java.io.IOException error) { android.util.Log.e("TavernProbe", "Performance script unavailable", error); }
         try(InputStream input=getAssets().open("android-downloads.js")){ByteArrayOutputStream bytes=new ByteArrayOutputStream();copy(input,bytes);downloadScript=bytes.toString("UTF-8");}catch(IOException error){android.util.Log.e("TavernProbe","Download script unavailable",error);}
         if (ACTION_DIAGNOSTICS.equals(getIntent().getAction())) currentUrl = "http://127.0.0.1:8788/";
-        if (ACTION_MAINTENANCE.equals(getIntent().getAction())) currentUrl = "http://127.0.0.1:8788/manage";
         getWindow().addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         if (Build.VERSION.SDK_INT >= 33) getOnBackInvokedDispatcher().registerOnBackInvokedCallback(android.window.OnBackInvokedDispatcher.PRIORITY_DEFAULT, this::handleBack);
         if (Build.VERSION.SDK_INT >= 33) requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, 1);
@@ -70,7 +71,7 @@ public class MainActivity extends Activity {
                     HttpURLConnection conn = (HttpURLConnection)new URL("http://127.0.0.1:8787/").openConnection();
                     conn.setConnectTimeout(1000); conn.setReadTimeout(1000);
                     int code; try { code = conn.getResponseCode(); } finally { conn.disconnect(); }
-                    if (code == 200) { android.util.Log.i("TavernStartup", "server-ready elapsedMs=" + (SystemClock.elapsedRealtime()-startupStartedAt)); handler.post(() -> { if (!destroyed) { status.setVisibility(android.view.View.GONE); load(currentUrl); } }); return; }
+                    if (code == 200) { android.util.Log.i("TavernStartup", "server-ready elapsedMs=" + (SystemClock.elapsedRealtime()-startupStartedAt)); handler.post(() -> { if (!destroyed) { status.setVisibility(android.view.View.GONE); load(currentUrl); if(openManagementAfterReady){openManagementAfterReady=false;startActivity(new Intent(this,ManagementActivity.class));} } }); return; }
                 } catch (Exception ignored) { }
                 try { Thread.sleep(1000); } catch (InterruptedException e) { return; }
             }
@@ -90,7 +91,7 @@ public class MainActivity extends Activity {
         load(ACTION_DIAGNOSTICS.equals(intent.getAction()) ? "http://127.0.0.1:8788/" : "http://127.0.0.1:8787/");
     }
     private void openManagement(){
-        if(web.getUrl()==null||!web.getUrl().equals("http://127.0.0.1:8787/")){load("http://127.0.0.1:8788/manage");return;}
+        if(web.getUrl()==null||!web.getUrl().equals("http://127.0.0.1:8787/")){startActivity(new Intent(this,ManagementActivity.class));return;}
         // Save through the upstream frontend before leaving the chat.
         web.evaluateJavascript("(async()=>{window.__apkManagementEntry={phase:'加载管理入口'};try{const m=await import('http://127.0.0.1:8787/script.js');if(m.isGenerating())throw Error('请先停止当前生成');const c=window.SillyTavern?.getContext();if(!c)throw Error('请等待酒馆加载完成');window.__apkManagementEntry.phase='保存聊天';await c.saveChat();window.__apkManagementEntry.phase='保存设置';await m.saveSettings();window.__apkManagementEntry.phase='进入管理';location.href='http://127.0.0.1:8788/manage';}catch(error){window.__apkManagementEntry.error=error.message;alert('无法进入管理：'+error.message);}})()",null);
     }
@@ -114,6 +115,10 @@ public class MainActivity extends Activity {
                 // cancelling those navigations leaves them stuck on about:blank.
                 if (!request.isForMainFrame()) return false;
                 Uri uri = request.getUrl();
+                if("http".equals(uri.getScheme())&&"127.0.0.1".equals(uri.getHost())&&uri.getPort()==8788&&"/manage".equals(uri.getPath())){
+                    startActivity(new Intent(MainActivity.this,ManagementActivity.class));
+                    return true;
+                }
                 if("apk-tavern".equals(uri.getScheme())&&"restart".equals(uri.getHost())){
                     if("http://127.0.0.1:8788/manage".equals(view.getUrl()))startActivity(new Intent(MainActivity.this,RestartActivity.class).putExtra("oldPid",android.os.Process.myPid()));
                     return true;

@@ -1,13 +1,32 @@
 <!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>星栈酒馆 · 管理</title>
-<style>[hidden]{display:none!important}body{font:16px sans-serif;background:#191919;color:#e9e2d6;margin:0;padding:20px;line-height:1.6}main{max-width:650px;margin:auto}button,a{font:inherit;padding:12px;margin:6px 4px 6px 0;border-radius:10px;display:inline-block}button{background:#d8cdb8;color:#222;border:0}button:disabled{opacity:.4}a{color:#bcd8ed}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#272727;padding:12px;border-radius:10px}small{color:#bbb}label{display:block}</style>
-<main><h2>星栈酒馆 · 管理</h2><p>从官方 release 分支检查更新。准备完成后再切换，切换前备份数据；启动失败会恢复上一版本。</p>
-<div><button id="check">检查更新</button><button id="prepare">下载并准备</button><button id="activate">备份并启用</button><button id="rollback">回到上一版本</button></div>
-<button id="auto">自动检查</button><pre id="status">正在读取…</pre><p id="message" role="status"></p>
-<a id="restart" href="apk-tavern://restart" hidden>重启酒馆</a><br><a href="http://127.0.0.1:8787/">返回酒馆</a><a href="http://127.0.0.1:8787/android-probe">安卓功能验证</a><a href="/">后台运行验证</a>
-<p><small>扩展安装、更新和切换分支仍在酒馆原有扩展面板中。含原生依赖或安装脚本的新版本可能需要更新 APK。回滚程序保留当前聊天数据；备份位于应用私有目录。</small></p></main>
+<style>[hidden]{display:none!important}body{font:16px sans-serif;background:#191919;color:#e9e2d6;margin:0;padding:20px;line-height:1.6}main{max-width:650px;margin:auto}section{border:1px solid #514d45;border-radius:14px;padding:15px;margin:16px 0}h2{margin:0 0 8px;font-size:1.22em}button,a{font:inherit;padding:10px 12px;margin:6px 4px 6px 0;border-radius:10px;display:inline-block}button{background:#d8cdb8;color:#222;border:0}button:disabled{opacity:.4}a{color:#bcd8ed}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#272727;padding:12px;border-radius:10px}small{color:#bbb}label{display:block}</style>
+<main><h1>星栈酒馆 · 管理</h1>
+<section aria-labelledby="app-title"><h2 id="app-title">星栈酒馆应用（APK）</h2>
+<p>检查本项目的 GitHub Release。新版 APK 包含 Android 外壳、内置 Node、原生媒体桥接与随包插件。下载后由系统确认安装；签名不一致时无法覆盖安装。</p>
+<button id="app-check">检查星栈版本</button><a id="app-download" hidden>下载主 APK</a><a id="app-release" hidden>查看发布说明</a>
+<pre id="app-status">尚未检查</pre><p id="app-message" role="status"></p></section>
+<section aria-labelledby="core-title"><h2 id="core-title">SillyTavern 官方程序</h2>
+<p>从官方 release 分支检查更新，准备后再切换程序版本。切换前备份数据；启动失败会恢复上一版本。</p>
+<div><button id="check">检查官方版本</button><button id="prepare">下载并准备</button><button id="activate">备份并启用</button><button id="rollback">回到上一版本</button></div>
+<button id="auto">自动检查</button><pre id="status">正在读取…</pre><p id="message" role="status"></p></section>
+<p><a id="restart" href="apk-tavern://restart" hidden>重启酒馆</a><a href="http://127.0.0.1:8787/">返回酒馆</a><a href="http://127.0.0.1:8787/android-probe">安卓功能验证</a><a href="/">后台运行验证</a></p>
+<p><small>星栈 APK 与 SillyTavern 官方程序分别更新。第三方扩展仍在酒馆扩展面板中更新；新版本若需要原生依赖或安装脚本，可能需要新版 APK。备份位于应用私有目录。</small></p></main>
 <script>
 const token='__MANAGEMENT_TOKEN__';window.__apkManagement={request};
 async function request(action,method='POST'){const r=await fetch('/manage/api/'+action,{method,headers:{'X-Apk-Management':token}});const result=await r.json();if(!r.ok)throw Error(result.error);return result;}
+const installed=new URLSearchParams(location.search).get('installed')||'未知';
+document.querySelector('#app-status').textContent='当前安装：'+installed+'\n点击“检查星栈版本”获取发布信息。';
+document.querySelector('#app-check').onclick=async()=>{
+ const button=document.querySelector('#app-check'),message=document.querySelector('#app-message'),status=document.querySelector('#app-status');
+ button.disabled=true;message.textContent='正在检查 GitHub Release…';
+ document.querySelector('#app-download').hidden=true;document.querySelector('#app-release').hidden=true;
+ try{const release=await request('app-release','GET');window.__apkManagement.appRelease=release;
+  status.textContent=['当前安装：'+installed,'最新发布：'+release.tag,release.publishedAt?'发布时间：'+release.publishedAt:'',release.apk?'主 APK：'+release.apk.name+'（'+(release.apk.size/1048576).toFixed(1)+' MiB）':'该发布版没有主 APK',release.apk?.sha256?'SHA-256：'+release.apk.sha256:'',release.tag.replace(/^v/,'')===installed?'版本标签相同':'请核对发布说明与安装包版本'].filter(Boolean).join('\n');
+  const page=document.querySelector('#app-release');page.href=release.releaseUrl;page.hidden=false;
+  if(release.apk){const apk=document.querySelector('#app-download');apk.href=release.apk.url;apk.hidden=false;}
+  message.textContent=release.apk?'通过浏览器下载后，由 Android 安装器确认升级。':'未找到可下载的星栈主 APK，请查看发布说明。';
+ }catch(error){message.textContent='检查失败：'+error.message;}finally{button.disabled=false;}
+};
 async function refresh(){const s=await request('status','GET');window.__apkManagement.status=s;
  document.querySelector('#status').textContent=['当前：'+(s.active==='bundled'?'APK 内置版':s.active.slice(0,10)),'官方：'+(s.latest?.commit?.slice(0,10)||'尚未检查'),s.latest?.commit===(s.active==='bundled'?s.bundled:s.active)?'当前已是最新官方 release，可重新下载验证':'',s.staged?'已准备：'+s.staged.slice(0,10):'',s.job?[s.job.phase,s.job.detail,s.job.error].filter(Boolean).join(' · '):'',s.backup?'已保留更新前备份':'',s.lastError||''].filter(Boolean).join('\n');
  document.querySelector('#auto').textContent='启动时检查更新：'+(s.autoCheck?'开':'关');

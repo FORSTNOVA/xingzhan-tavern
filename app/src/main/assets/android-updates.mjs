@@ -27,6 +27,22 @@ export async function download(url,allowedHosts,limit=128*1024*1024){
   const chunks=[];let size=0;for await(const chunk of response.body){size+=chunk.length;if(size>limit)throw new Error('下载文件过大');chunks.push(chunk);}return Buffer.concat(chunks);
  }throw new Error('下载重定向过多');
 }
+export function parseAppRelease(data){
+ if(!data||typeof data.tag_name!=='string'||!/^v[\w.-]+$/.test(data.tag_name)||data.draft)throw new Error('星栈发布信息无效');
+ const releaseUrl=new URL(data.html_url||'');
+ if(releaseUrl.origin!=='https://github.com'||releaseUrl.pathname!==`/FORSTNOVA/xingzhan-tavern/releases/tag/${data.tag_name}`)throw new Error('星栈发布地址无效');
+ const assets=(Array.isArray(data.assets)?data.assets:[]).filter(asset=>{
+  if(!/^xingzhan-tavern-[\w.-]+\.apk$/i.test(asset.name||'')||asset.state!=='uploaded'||!Number.isSafeInteger(asset.size)||asset.size<=0)return false;
+  try{const url=new URL(asset.browser_download_url);return url.origin==='https://github.com'&&url.pathname===`/FORSTNOVA/xingzhan-tavern/releases/download/${data.tag_name}/${asset.name}`;}catch{return false;}
+ });
+ const asset=assets.find(item=>/arm64/i.test(item.name))||assets[0];
+ return {tag:data.tag_name,name:String(data.name||data.tag_name).slice(0,160),publishedAt:data.published_at||null,releaseUrl:releaseUrl.href,
+  apk:asset?{name:asset.name,size:asset.size,url:asset.browser_download_url,sha256:/^sha256:[a-f0-9]{64}$/i.test(asset.digest||'')?asset.digest.slice(7).toLowerCase():null}:null};
+}
+export async function checkAppRelease(){
+ const bytes=await download('https://api.github.com/repos/FORSTNOVA/xingzhan-tavern/releases/latest',['api.github.com'],4*1024*1024);
+ return parseAppRelease(JSON.parse(bytes));
+}
 export async function extractZip(buffer,destination,yauzl){
  await fsp.mkdir(destination,{recursive:true});
  await new Promise((resolve,reject)=>yauzl.fromBuffer(buffer,{lazyEntries:true},(error,zip)=>{
